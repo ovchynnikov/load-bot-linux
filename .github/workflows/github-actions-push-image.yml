@@ -7,7 +7,6 @@ on:
   pull_request:
     branches:
       - '*'
-
 env:
   REGISTRY: index.docker.io
   # github.repository as <account>/<repo>
