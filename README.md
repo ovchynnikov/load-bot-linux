@@ -136,6 +136,7 @@ sudo systemctl status downloader-bot.service
 
 ### Supported platforms by default:
 ```
+facebook
 instagram reels
 tiktok
 reddit
