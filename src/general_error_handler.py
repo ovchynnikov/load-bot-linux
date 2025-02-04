@@ -11,26 +11,30 @@ Dependencies:
 """
 
 import os
+from typing import Optional
 from telegram import Update
-from telegram.ext import ContextTypes
+from telegram.ext import CallbackContext
 from logger import error, debug
 
 admins_chat_ids = os.getenv("ADMINS_CHAT_IDS")
 send_error_to_admin = os.getenv("SEND_ERROR_TO_ADMIN", "False").lower() == "true"
 
 
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def error_handler(update: Optional[Update], context: CallbackContext):
     """Log the error and send a message to the admins.
     Works only if SEND_ERROR_TO_ADMIN=True in .env file. and ADMINS_CHAT_IDS is set.
     If SEND_ERROR_TO_ADMIN=False, the error will be logged but not sent to admins.
     Works only for Exceptions errors that are not handled by the bot code.
     """
-    if update is None or update.effective_sender is None:
-        error("Update or effective_sender is None. Cannot log error.")
-        return  # Exit the function if update is not valid
 
+    if update is None:
+        error("Update is None. Cannot log error.")
+        return  # Exit the function if update is not valid
+    if update.effective_sender is None:
+        error("Effective sender is None. Cannot log error.")
+        return  # Exit the function if effective_sender is not valid
     username = update.effective_sender.username
-    debug("User username: %s", username)
+    error("An error occurred while processing the update from %s: %s", username, context.error)
     # Log the error
     debug("Update %s caused error %s", update, context.error)
     debug("send_error_to_admin: %s, admin_chat_id: %s", send_error_to_admin, admins_chat_ids)
