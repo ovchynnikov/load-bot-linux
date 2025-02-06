@@ -3,10 +3,9 @@
 
 import os
 import re
-import shutil
 import subprocess
 import tempfile
-from pathlib import PurePath, Path
+from pathlib import Path
 import yt_dlp
 from dotenv import load_dotenv
 from logger import debug, error
@@ -14,13 +13,14 @@ from logger import debug, error
 load_dotenv()  # Load environment variables from .env file
 
 # Retrieve the INSTACOOKIES environment variable and set a default value
-INSTACOOKIES = os.getenv("INSTACOOKIES", "false").lower() == 'true'
+instagram_cookies = os.getenv("INSTACOOKIES", "false").lower() == 'true'
 
 # Check if INSTACOOKIES is True and the required file exists
-if INSTACOOKIES:
+if instagram_cookies:
     if not os.path.exists("instagram_cookies.txt"):
         error("INSTACOOKIES is True but 'instagram_cookies.txt' not found.")
-        INSTACOOKIES = False  # Set to False if the file is not found
+        # Set to False if the file is not found
+        instagram_cookies = False  # pylint: disable=invalid-name
 else:
     debug("INSTACOOKIES is False or cookies file not found")
 
@@ -195,7 +195,7 @@ def download_instagram_media(url, temp_dir):
 
     command = [
         "gallery-dl",  # Assuming gallery-dl is installed and in the PATH
-        *(["--cookies", "instagram_cookies.txt"] if INSTACOOKIES else []),
+        *(["--cookies", "instagram_cookies.txt"] if instagram_cookies else []),
         url,
         "-d",
         temp_dir,
@@ -250,7 +250,7 @@ def download_media(url):
     temp_dir = tempfile.mkdtemp()
     command = [
         "yt-dlp",  # Assuming yt-dlp is installed and in the PATH
-        *(["--cookies", "instagram_cookies.txt"] if INSTACOOKIES else []),
+        *(["--cookies", "instagram_cookies.txt"] if instagram_cookies else []),
         "-S",
         "vcodec:h264,fps,res,acodec:m4a",
         url,
@@ -290,42 +290,5 @@ def download_media(url):
         error("Download error occurred: %s", e)
     except yt_dlp.utils.ExtractorError as e:
         error("Extractor error occurred: %s", e)
-    finally:
-        if result_path is None:
-            shutil.rmtree(temp_dir)
 
     return result_path  # Return the result variable at the end
-
-
-def cleanup(media_path):
-    """
-    Cleans up temporary files by deleting the specified video file and its containing directory.
-
-    This function removes the specified media_path with video or images and
-    its parent directory. Logs are printed if debugging is enabled.
-
-    Parameters:
-        media_path (list): The path to the video file to delete.
-
-    Logs:
-        Logs messages about the deletion process or any errors encountered.
-    """
-
-    folder_to_delete = None
-    if isinstance(media_path, list):
-        try:
-            first_media_path = PurePath(media_path[0])
-            folder_to_delete = f"/{first_media_path.parts[1]}/{first_media_path.parts[2]}"
-        except (OSError, IOError):
-            debug("Unable to find temp folder for %s", media_path[0])
-            return
-
-    debug("Temporary directory to delete %s", folder_to_delete)
-    try:
-        shutil.rmtree(folder_to_delete)
-        if os.path.exists(folder_to_delete):
-            error("Temporary directory still exists after cleanup: %s", folder_to_delete)
-        else:
-            debug("Temporary directory successfully deleted: %s", folder_to_delete)
-    except (OSError, IOError) as cleanup_error:
-        error("Error deleting folder: %s", cleanup_error)
