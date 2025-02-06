@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 from logger import debug, error
 
+
 def cleanup(path):
     """
     Cleans up temporary files by deleting the specified video file and its containing directory.
@@ -26,7 +27,7 @@ def cleanup(path):
     if isinstance(path, list):
         if not path:
             return
-        path = path[0] # Take the first path if list is given.
+        path = path[0]  # Take the first path if list is given.
 
     path = str(path)  # Ensure path is a string
 
