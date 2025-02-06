@@ -13,10 +13,10 @@ from telegram.constants import MessageEntityType
 from logger import error, info, debug
 from general_error_handler import error_handler
 from permissions import inform_user_not_allowed, is_user_or_chat_not_allowed, supported_sites
+from cleanup import cleanup
 from video_utils import (
     compress_video,
     download_media,
-    cleanup,
     is_video_duration_over_limits,
     is_video_too_long_to_download,
 )
@@ -158,7 +158,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
     Returns:
         None
     """
-    THROTTLE = False
+    throttle = False
     video_path = None
     if not update.message or not update.message.text:
         return
@@ -219,7 +219,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
         # Ensure that not more than 10 media files are processed
         if len(media_path) > 10:
             debug("Too many media files to process, enabling throttle. Amount: %s", len(media_path))
-            THROTTLE = True
+            throttle = True
 
         for pathobj in media_path:
 
@@ -262,14 +262,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
             # Send the video to the chat
             await send_video(update, video, has_spoiler)
             # wait 5 seconds before sending the next media throttle is enabled
-            if THROTTLE:
+            if throttle:
                 await asyncio.sleep(15)
 
         for pic in pic_path:
             # Send the picture to the chat
             await send_pic(update, pic)
             # wait 5 seconds before sending the next video if throttle is enabled
-            if THROTTLE:
+            if throttle:
                 await asyncio.sleep(15)
 
     finally:

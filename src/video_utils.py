@@ -290,14 +290,11 @@ def download_media(url):
         error("Download error occurred: %s", e)
     except yt_dlp.utils.ExtractorError as e:
         error("Extractor error occurred: %s", e)
-    finally:
-        if result_path is None:
-            shutil.rmtree(temp_dir)
 
     return result_path  # Return the result variable at the end
 
 
-def cleanup(media_path):
+def cleanup_old(media_path):
     """
     Cleans up temporary files by deleting the specified video file and its containing directory.
 
