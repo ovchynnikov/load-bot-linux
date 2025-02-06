@@ -292,37 +292,3 @@ def download_media(url):
         error("Extractor error occurred: %s", e)
 
     return result_path  # Return the result variable at the end
-
-
-def cleanup_old(media_path):
-    """
-    Cleans up temporary files by deleting the specified video file and its containing directory.
-
-    This function removes the specified media_path with video or images and
-    its parent directory. Logs are printed if debugging is enabled.
-
-    Parameters:
-        media_path (list): The path to the video file to delete.
-
-    Logs:
-        Logs messages about the deletion process or any errors encountered.
-    """
-
-    folder_to_delete = None
-    if isinstance(media_path, list):
-        try:
-            first_media_path = PurePath(media_path[0])
-            folder_to_delete = f"/{first_media_path.parts[1]}/{first_media_path.parts[2]}"
-        except (OSError, IOError):
-            debug("Unable to find temp folder for %s", media_path[0])
-            return
-
-    debug("Temporary directory to delete %s", folder_to_delete)
-    try:
-        shutil.rmtree(folder_to_delete)
-        if os.path.exists(folder_to_delete):
-            error("Temporary directory still exists after cleanup: %s", folder_to_delete)
-        else:
-            debug("Temporary directory successfully deleted: %s", folder_to_delete)
-    except (OSError, IOError) as cleanup_error:
-        error("Error deleting folder: %s", cleanup_error)
