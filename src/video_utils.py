@@ -3,10 +3,9 @@
 
 import os
 import re
-import shutil
 import subprocess
 import tempfile
-from pathlib import PurePath, Path
+from pathlib import Path
 import yt_dlp
 from dotenv import load_dotenv
 from logger import debug, error
