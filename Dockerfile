@@ -10,6 +10,7 @@ RUN --mount=type=bind,target=/tmp/requirements.txt,source=src/requirements.txt \
     ffmpeg \
     libva-drm2 \
     libva-x11-2 \
+    libva2 \
     vainfo \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
     && python -m pip install --no-cache-dir -r /tmp/requirements.txt
