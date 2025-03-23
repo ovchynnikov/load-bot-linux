@@ -30,8 +30,7 @@ if language == "ua":
     language = "uk"
 
 # Reply with user data for Healthcheck
-send_user_info_with_healthcheck = os.getenv(
-    "SEND_USER_INFO_WITH_HEALTHCHECK", "False").lower() == "true"
+send_user_info_with_healthcheck = os.getenv("SEND_USER_INFO_WITH_HEALTHCHECK", "False").lower() == "true"
 
 
 TELEGRAM_WRITE_TIMEOUT = 8000
@@ -225,8 +224,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
 
         # Ensure that not more than 10 media files are processed
         if len(media_path) > 10:
-            debug("Too many media files to process, enabling throttle. Amount: %s", len(
-                media_path))
+            debug("Too many media files to process, enabling throttle. Amount: %s", len(media_path))
             throttle = True
 
         for pathobj in media_path:
@@ -256,15 +254,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
 
         if len(video_path) > 1:
             # Group videos
-            video_path = [video_path[i: i + 2]
-                          for i in range(0, len(video_path), 2)]
+            video_path = [video_path[i: i + 2] for i in range(0, len(video_path), 2)]
             # TODO: Implement a total size calculation for the group of videos  # pylint: disable=fixme
             # and resort to sending them one by one if the total size exceeds the limit
 
         if len(pic_path) > 1:
             # Group pictures
-            pic_path = [pic_path[i: i + 10]
-                        for i in range(0, len(pic_path), 10)]
+            pic_path = [pic_path[i: i + 10] for i in range(0, len(pic_path), 10)]
             debug("Grouped pictures length: %s", len(pic_path))
 
         for video in video_path:
@@ -303,10 +299,8 @@ async def respond_with_bot_message(update: Update) -> None:
     Returns:
         None
     """
-    response_message = random.choice(
-        responses)  # Select a random response from the predefined list
-    info(" requested [Chat ID]: %s by the user %s",
-         update.effective_chat.id, update.effective_user.username)
+    response_message = random.choice(responses)  # Select a random response from the predefined list
+    info(" requested [Chat ID]: %s by the user %s", update.effective_chat.id, update.effective_user.username)
 
     if send_user_info_with_healthcheck:
         response_message += f"\n[Chat ID]: {update.effective_chat.id}\n[Username]: {update.effective_user.username}"
@@ -466,8 +460,7 @@ def main():
     """
     bot_token = os.getenv("BOT_TOKEN")
     application = Application.builder().token(bot_token).build()
-    application.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     # This handler will receive every error which happens in your bot
     application.add_error_handler(error_handler)
     info("Bot started. Ctrl+C to stop")
