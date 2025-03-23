@@ -14,6 +14,11 @@ load_dotenv()  # Load environment variables from .env file
 
 # Retrieve the INSTACOOKIES environment variable and set a default value
 instagram_cookies = os.getenv("INSTACOOKIES", "false").lower() == 'true'
+# Retrieve the H_CODEC environment variable and set a default value
+LIBX264 = "libx264"
+LIBX265 = "libx265"
+h_codes = os.getenv("H_CODEC", LIBX265)  # Default lib to compress is libx265 to save space
+debug("Codec configured: %s", h_codes)
 
 # Check if INSTACOOKIES is True and the required file exists
 if instagram_cookies:
@@ -103,14 +108,15 @@ def compress_video(input_path):
     """
     temp_output = tempfile.mktemp(suffix=".mp4")
     # Caclulation of file size. 40 means MB
-    # target_size_bytes = 40 * 1024 * 1024
+    target_size_bytes = 40 * 1024 * 1024
     duration = get_video_duration(input_path)
     if not duration:
         raise ValueError("Get video duration failed.")
 
     # bitrate caclulation kb/s (bit/sec -> kb/sec)
-    # target_bitrate_kbps = (target_size_bytes * 8) / duration / 1000
+    target_bitrate_kbps = (target_size_bytes * 8) / duration / 1000
     debug("Starting compression for video: %s", input_path)
+
     command = [
         "nice",
         "-n",
@@ -118,12 +124,11 @@ def compress_video(input_path):
         "ffmpeg",
         "-i",
         input_path,
-        "-qp",
-        "35",  # Use constant quantization parameter instead of bitrate
+        *(["-qp", "35"] if h_codes == LIBX265 else []), # Use constant quantization parameter instead of bitrate
+        *(["-b:v", f"{target_bitrate_kbps}k"] if h_codes == LIBX264 else []),
         "-vf",
         "scale=-2:720",
-        "-c:v",
-        "libx265",
+        *(["-c:v", LIBX264] if h_codes == LIBX264 else ["-c:v", LIBX265]), # Use libx264 or libx265 based on h_codes
         "-preset",
         "fast",
         "-c:a",
@@ -133,29 +138,6 @@ def compress_video(input_path):
         "-y",
         temp_output,
     ]
-
-    # command = [
-    #     "nice",
-    #     "-n",
-    #     "19",
-    #     "ffmpeg",
-    #     "-i",
-    #     input_path,
-    #     "-b:v",
-    #     f"{target_bitrate_kbps}k",
-    #     "-vf",
-    #     "scale=-2:720",
-    #     "-c:v",
-    #     "libx264",
-    #     "-preset",
-    #     "fast",
-    #     "-c:a",
-    #     "aac",
-    #     "-b:a",
-    #     "128k",
-    #     "-y",
-    #     temp_output,
-    # ]
 
     try:
         subprocess.run(command, check=True)
