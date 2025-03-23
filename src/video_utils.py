@@ -128,10 +128,10 @@ def compress_video(input_path):
         *(["-vaapi_device", "/dev/dri/renderD128"] if use_gpu_compressing else []),
         "-i",
         input_path,
-        # "-qp",
-        # "35",
+        "-qp",
+        "35",
         # *(["-b:v", f"{target_bitrate_kbps}k"] if h_codes == LIBX264 else []),
-        *(["-vf", "scale_vaapi=-2:720,format=nv12,hwupload"] if use_gpu_compressing else ["-vf", "scale=-2:720"]),
+        *(["-vf", "format=nv12,hwupload,scale_vaapi=-2:720"] if use_gpu_compressing else ["-vf", "scale=-2:720"]),
         *(
             ["-c:v", "h264_vaapi"]
             if use_gpu_compressing and h_codec == LIBX264
