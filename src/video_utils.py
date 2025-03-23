@@ -18,7 +18,9 @@ instagram_cookies = os.getenv("INSTACOOKIES", "false").lower() == 'true'
 LIBX264 = "libx264"
 LIBX265 = "libx265"
 h_codes = os.getenv("H_CODEC", LIBX265)  # Default lib to compress is libx265 to save space
+use_gpu_compressing = os.getenv("USE_GPU_COMPRESSING", "false").lower() == 'true'
 debug("Codec configured: %s", h_codes)
+debug("Use GPU compressing: %s", use_gpu_compressing)
 
 # Check if INSTACOOKIES is True and the required file exists
 if instagram_cookies:
@@ -108,13 +110,13 @@ def compress_video(input_path):
     """
     temp_output = tempfile.mktemp(suffix=".mp4")
     # Caclulation of file size. 40 means MB
-    target_size_bytes = 40 * 1024 * 1024
+    # target_size_bytes = 40 * 1024 * 1024
     duration = get_video_duration(input_path)
     if not duration:
         raise ValueError("Get video duration failed.")
 
     # bitrate caclulation kb/s (bit/sec -> kb/sec)
-    target_bitrate_kbps = (target_size_bytes * 8) / duration / 1000
+    # target_bitrate_kbps = (target_size_bytes * 8) / duration / 1000
     debug("Starting compression for video: %s", input_path)
 
     command = [
@@ -122,13 +124,23 @@ def compress_video(input_path):
         "-n",
         "19",
         "ffmpeg",
+        *(["-hwaccel", "vaapi"] if use_gpu_compressing == 'true' else []),
+        *(["-vaapi_device", "/dev/dri/renderD128"] if use_gpu_compressing == 'true' else []),
         "-i",
         input_path,
-        *(["-qp", "35"] if h_codes == LIBX265 else []),  # Use constant quantization parameter instead of bitrate
-        *(["-b:v", f"{target_bitrate_kbps}k"] if h_codes == LIBX264 else []),
-        "-vf",
-        "scale=-2:720",
-        *(["-c:v", LIBX264] if h_codes == LIBX264 else ["-c:v", LIBX265]),  # Use libx264 or libx265 based on h_codes
+        "-qp",
+        "35",
+        # *(["-b:v", f"{target_bitrate_kbps}k"] if h_codes == LIBX264 else []),
+        *(["-vf", "scale=-2:720,format=nv12,hwupload"] if use_gpu_compressing == 'true' else ["-vf", "scale=-2:720"]),
+        *(
+            ["-c:v", "h264_vaapi"]
+            if use_gpu_compressing == 'true' and h_codes == LIBX264
+            else (
+                ["-c:v", "h265_vaapi"]
+                if use_gpu_compressing == 'true' and h_codes == LIBX265
+                else ["-c:v", h_codes]
+            )
+        ),  # Use hardware GPU acceleration or software codec based on settings
         "-preset",
         "fast",
         "-c:a",

@@ -35,6 +35,10 @@ or if you use instagram cookies
 ```
 docker run -d --name downloader-bot --restart always --env-file .env -v /absolute/path/to/instagram_cookies.txt:/bot/instagram_cookies.txt ovchynnikov/load-bot-linux:latest
 ```
+or if you want use GPU power of intel chip and set USE_GPU_COMPRESSING=True variable
+```
+docker run --rm --device /dev/dri:/dev/dri .....
+```
 Alternatively, you can use **docker-compose**
 ```
 docker-compose build
@@ -91,6 +95,7 @@ Environment="INSTACOOKIES=False"                       # <====== REPLACE THIS (v
 Environment="ADMINS_CHAT_IDS="                         # <====== REPLACE THIS (value is optional) Type: string separated by commas. IDS to send Exceptions errors to private messages. Get this from bot health check
 Environment="SEND_ERROR_TO_ADMIN=True"                 # <====== REPLACE THIS (value is optional) Type: Boolean.  Send errors to admins in private messages
 Environment="H_CODEC=libx265"                          # <====== REPLACE THIS (value is optional) Type: String. libx265 or libx264 
+Environment="USE_GPU_COMPRESSING=False"                # <====== Enable to use GPU for video compression using Intel chip and VAAPI. False by default
 
 [Install]
 WantedBy=multi-user.target
