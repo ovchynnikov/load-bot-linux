@@ -190,7 +190,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
                 "uk": "Цей сайт не підтримується. Спробуйте додати ** перед https://",
                 "en": "This site is not supported. Try adding ** before the https://",
             }
-            await update.message.reply_text(not_supported_responses[language])
+            await update.message.reply_text(
+                not_supported_responses[language],
+                reply_to_message_id=update.message.message_id,
+            )
             return  # Stop further execution after sending the reply
         return
 
@@ -200,7 +203,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
 
     if is_video_too_long_to_download(url):
         debug("Video is too long to process.")
-        await update.message.reply_text("The video is too long to send (over 12 minutes).")
+        await update.message.reply_text(
+            "The video is too long to send (over 12 minutes).",
+            reply_to_message_id=update.message.message_id,
+        )
         return
     debug("Video is not too long or metadata is not available. Starting download.")
 
@@ -227,13 +233,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
             if pathobj.endswith(".mp4"):
                 # do not process if video is too long
                 if is_video_duration_over_limits(pathobj):
-                    await update.message.reply_text("The video is too long to send (over 12min).")
+                    await update.message.reply_text(
+                        "The video is too long to send (over 12min).",
+                        reply_to_message_id=update.message.message_id,
+                    )
                     continue  # Drop the video and continue to the next one
                 # Compress the video if it's too large
                 if is_large_file(pathobj):
                     compress_video(pathobj)
                     if is_large_file(pathobj):
-                        await update.message.reply_text("The video is too large to send (over 50MB).")
+                        await update.message.reply_text(
+                            "The video is too large to send (over 50MB).",
+                            reply_to_message_id=update.message.message_id,
+                        )
                         continue  # Stop further execution for this video
                 video_path.append(pathobj)
 
@@ -289,9 +301,13 @@ async def respond_with_bot_message(update: Update) -> None:
     """
     response_message = random.choice(responses)  # Select a random response from the predefined list
     info(" requested [Chat ID]: %s by the user %s", update.effective_chat.id, update.effective_user.username)
+
     if send_user_info_with_healthcheck:
         response_message += f"\n[Chat ID]: {update.effective_chat.id}\n[Username]: {update.effective_user.username}"
-    await update.message.reply_text(f"{response_message}")
+    await update.message.reply_text(
+        f"{response_message}",
+        reply_to_message_id=update.message.message_id,
+    )
 
 
 async def send_video(update: Update, video, has_spoiler: bool) -> None:
@@ -318,11 +334,15 @@ async def send_video(update: Update, video, has_spoiler: bool) -> None:
                     disable_notification=True,
                     write_timeout=TELEGRAM_WRITE_TIMEOUT,
                     read_timeout=TELEGRAM_READ_TIMEOUT,
+                    reply_to_message_id=update.message.message_id,
                 )
         except TimedOut as e:
             error("Telegram timeout while sending video. %s", e)
         except (NetworkError, TelegramError) as e:
-            await update.message.reply_text(f"Error sending video: {str(e)}. Please try again later.")
+            await update.message.reply_text(
+                f"Error sending video: {str(e)}. Please try again later.",
+                reply_to_message_id=update.message.message_id,
+            )
         finally:
             video_file.close()
 
@@ -345,7 +365,10 @@ async def send_video(update: Update, video, has_spoiler: bool) -> None:
         except TimedOut as e:
             error("Telegram timeout while sending group of videos. %s", e)
         except (NetworkError, TelegramError) as e:
-            await update.message.reply_text(f"Error sending group of videos: {str(e)}. Please try again later.")
+            await update.message.reply_text(
+                f"Error sending group of videos: {str(e)}. Please try again later.",
+                reply_to_message_id=update.message.message_id,
+            )
         finally:
             for file in opened_files:
                 file.close()
@@ -374,7 +397,10 @@ async def send_pic(update: Update, pic) -> None:
         except TimedOut as e:
             error("Telegram timeout while sending picture. %s", e)
         except (NetworkError, TelegramError) as e:
-            await update.message.reply_text(f"Error sending picture: {str(e)}. Please try again later.")
+            await update.message.reply_text(
+                f"Error sending picture: {str(e)}. Please try again later.",
+                reply_to_message_id=update.message.message_id,
+            )
         finally:
             pic_file.close()
 
@@ -397,7 +423,10 @@ async def send_pic(update: Update, pic) -> None:
         except TimedOut as e:
             error("Telegram timeout while sending group of pictures. %s", e)
         except (NetworkError, TelegramError) as e:
-            await update.message.reply_text(f"Error sending group of pictures: {str(e)}. Please try again later.")
+            await update.message.reply_text(
+                f"Error sending group of pictures: {str(e)}. Please try again later.",
+                reply_to_message_id=update.message.message_id,
+            )
         finally:
             for file in opened_files:
                 file.close()
