@@ -124,11 +124,11 @@ def compress_video(input_path):
         "ffmpeg",
         "-i",
         input_path,
-        *(["-qp", "35"] if h_codes == LIBX265 else []), # Use constant quantization parameter instead of bitrate
+        *(["-qp", "35"] if h_codes == LIBX265 else []),  # Use constant quantization parameter instead of bitrate
         *(["-b:v", f"{target_bitrate_kbps}k"] if h_codes == LIBX264 else []),
         "-vf",
         "scale=-2:720",
-        *(["-c:v", LIBX264] if h_codes == LIBX264 else ["-c:v", LIBX265]), # Use libx264 or libx265 based on h_codes
+        *(["-c:v", LIBX264] if h_codes == LIBX264 else ["-c:v", LIBX265]),  # Use libx264 or libx265 based on h_codes
         "-preset",
         "fast",
         "-c:a",
