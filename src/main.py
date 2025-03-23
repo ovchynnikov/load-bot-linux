@@ -193,7 +193,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
             await update.message.reply_text(
                 not_supported_responses[language],
                 reply_to_message_id=update.message.message_id
-                )
+            )
             return  # Stop further execution after sending the reply
         return
 
@@ -206,7 +206,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
         await update.message.reply_text(
             "The video is too long to send (over 12 minutes).",
             reply_to_message_id=update.message.message_id
-            )
+        )
         return
     debug("Video is not too long or metadata is not available. Starting download.")
 
@@ -236,7 +236,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
                     await update.message.reply_text(
                         "The video is too long to send (over 12min).",
                         reply_to_message_id=update.message.message_id
-                        )
+                    )
                     continue  # Drop the video and continue to the next one
                 # Compress the video if it's too large
                 if is_large_file(pathobj):
@@ -245,7 +245,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
                         await update.message.reply_text(
                             "The video is too large to send (over 50MB).",
                             reply_to_message_id=update.message.message_id
-                            )
+                        )
                         continue  # Stop further execution for this video
                 video_path.append(pathobj)
 
@@ -368,7 +368,7 @@ async def send_video(update: Update, video, has_spoiler: bool) -> None:
             await update.message.reply_text(
                 f"Error sending group of videos: {str(e)}. Please try again later.",
                 reply_to_message_id=update.message.message_id
-                )
+            )
         finally:
             for file in opened_files:
                 file.close()
