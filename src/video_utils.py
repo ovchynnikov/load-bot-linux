@@ -111,7 +111,7 @@ def compress_video(input_path):
     # bitrate caclulation kb/s (bit/sec -> kb/sec)
     # target_bitrate_kbps = (target_size_bytes * 8) / duration / 1000
     debug("Starting compression for video: %s", input_path)
-    command = [ 
+    command = [
         "nice",
         "-n",
         "19",
