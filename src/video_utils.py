@@ -14,12 +14,12 @@ load_dotenv()  # Load environment variables from .env file
 
 # Retrieve the INSTACOOKIES environment variable and set a default value
 instagram_cookies = os.getenv("INSTACOOKIES", "false").lower() == 'true'
-# Retrieve the H_CODEC environment variable and set a default value
 LIBX264 = "libx264"
 LIBX265 = "libx265"
-h_codes = os.getenv("H_CODEC", LIBX265)  # Default lib to compress is libx265 to save space
+# Retrieve the H_CODEC environment variable and set a default value
+h_codec = os.getenv("H_CODEC", LIBX265)  # Default lib to compress is libx265 to save space
 use_gpu_compressing = os.getenv("USE_GPU_COMPRESSING", "false").lower() == 'true'
-debug("Codec configured: %s", h_codes)
+debug("Codec configured: %s", h_codec)
 debug("Use GPU compressing: %s", use_gpu_compressing)
 
 # Check if INSTACOOKIES is True and the required file exists
@@ -134,8 +134,8 @@ def compress_video(input_path):
         *(["-vf", "scale=-2:720,format=nv12,hwupload"] if use_gpu_compressing == 'true' else ["-vf", "scale=-2:720"]),
         *(
             ["-c:v", "h264_vaapi"]
-            if use_gpu_compressing == 'true' and h_codes == LIBX264
-            else (["-c:v", "h265_vaapi"] if use_gpu_compressing == 'true' and h_codes == LIBX265 else ["-c:v", h_codes])
+            if use_gpu_compressing == 'true' and h_codec == LIBX264
+            else (["-c:v", "h265_vaapi"] if use_gpu_compressing == 'true' and h_codec == LIBX265 else ["-c:v", h_codec])
         ),  # Use hardware GPU acceleration or software codec based on settings
         "-preset",
         "fast",
