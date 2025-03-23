@@ -90,6 +90,7 @@ Environment="ALLOWED_CHAT_IDS="                        # <====== REPLACE THIS (v
 Environment="INSTACOOKIES=False"                       # <====== REPLACE THIS (value is optional) Type: Boolean. False by default.
 Environment="ADMINS_CHAT_IDS="                         # <====== REPLACE THIS (value is optional) Type: string separated by commas. IDS to send Exceptions errors to private messages. Get this from bot health check
 Environment="SEND_ERROR_TO_ADMIN=True"                 # <====== REPLACE THIS (value is optional) Type: Boolean.  Send errors to admins in private messages
+Environment="H_CODEC=libx265"                          # <====== REPLACE THIS (value is optional) Type: String. libx265 or libx264 
 
 [Install]
 WantedBy=multi-user.target
