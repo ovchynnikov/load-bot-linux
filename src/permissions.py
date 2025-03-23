@@ -54,7 +54,7 @@ async def inform_user_not_allowed(update: Update) -> None:
             f"You are not allowed to use this bot.\n "
             f"[Username]:  {update.effective_user.username}\n "
             f"[Chat ID]: {update.effective_chat.id}",
-            reply_to_message_id=update.message.message_id
+            reply_to_message_id=update.message.message_id,
         )
 
 
