@@ -135,11 +135,7 @@ def compress_video(input_path):
         *(
             ["-c:v", "h264_vaapi"]
             if use_gpu_compressing == 'true' and h_codes == LIBX264
-            else (
-                ["-c:v", "h265_vaapi"]
-                if use_gpu_compressing == 'true' and h_codes == LIBX265
-                else ["-c:v", h_codes]
-            )
+            else (["-c:v", "h265_vaapi"] if use_gpu_compressing == 'true' and h_codes == LIBX265 else ["-c:v", h_codes])
         ),  # Use hardware GPU acceleration or software codec based on settings
         "-preset",
         "fast",
