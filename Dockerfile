@@ -6,9 +6,13 @@ LABEL org.opencontainers.image.source="https://github.com/ovchynnikov/load-bot-l
         org.opencontainers.image.description="Telegram bot to download videos from tiktok, x(twitter), reddit, youtube shorts, instagram reels and many more"
 
 RUN --mount=type=bind,target=/tmp/requirements.txt,source=src/requirements.txt \
-    apt-get update && apt-get install --no-install-recommends -y ffmpeg && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* && \
-    python -m pip install --no-cache-dir -r /tmp/requirements.txt
+    apt-get update && apt-get install --no-install-recommends -y \
+    ffmpeg \
+    libva-drm2 \
+    libva-x11-2 \
+    vainfo \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && python -m pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY src /bot
 
