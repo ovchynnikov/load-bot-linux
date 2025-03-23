@@ -124,18 +124,18 @@ def compress_video(input_path):
         "-n",
         "19",
         "ffmpeg",
-        *(["-hwaccel", "vaapi"] if use_gpu_compressing == 'true' else []),
-        *(["-vaapi_device", "/dev/dri/renderD128"] if use_gpu_compressing == 'true' else []),
+        *(["-hwaccel", "vaapi"] if use_gpu_compressing else []),
+        *(["-vaapi_device", "/dev/dri/renderD128"] if use_gpu_compressing else []),
         "-i",
         input_path,
         "-qp",
         "35",
         # *(["-b:v", f"{target_bitrate_kbps}k"] if h_codes == LIBX264 else []),
-        *(["-vf", "scale=-2:720,format=nv12,hwupload"] if use_gpu_compressing == 'true' else ["-vf", "scale=-2:720"]),
+        *(["-vf", "scale=-2:720,format=nv12,hwupload"] if use_gpu_compressing else ["-vf", "scale=-2:720"]),
         *(
             ["-c:v", "h264_vaapi"]
-            if use_gpu_compressing == 'true' and h_codec == LIBX264
-            else (["-c:v", "h265_vaapi"] if use_gpu_compressing == 'true' and h_codec == LIBX265 else ["-c:v", h_codec])
+            if use_gpu_compressing and h_codec == LIBX264
+            else (["-c:v", "h265_vaapi"] if use_gpu_compressing and h_codec == LIBX265 else ["-c:v", h_codec])
         ),  # Use hardware GPU acceleration or software codec based on settings
         "-preset",
         "fast",
