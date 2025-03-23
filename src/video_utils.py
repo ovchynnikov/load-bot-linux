@@ -103,15 +103,14 @@ def compress_video(input_path):
     """
     temp_output = tempfile.mktemp(suffix=".mp4")
     # Caclulation of file size. 40 means MB
-    target_size_bytes = 40 * 1024 * 1024
+    # target_size_bytes = 40 * 1024 * 1024
     duration = get_video_duration(input_path)
     if not duration:
         raise ValueError("Get video duration failed.")
 
     # bitrate caclulation kb/s (bit/sec -> kb/sec)
-    target_bitrate_kbps = (target_size_bytes * 8) / duration / 1000
+    # target_bitrate_kbps = (target_size_bytes * 8) / duration / 1000
     debug("Starting compression for video: %s", input_path)
-
     command = [
         "nice",
         "-n",
@@ -119,12 +118,12 @@ def compress_video(input_path):
         "ffmpeg",
         "-i",
         input_path,
-        "-b:v",
-        f"{target_bitrate_kbps}k",
+        "-qp",
+        "35",  # Use constant quantization parameter instead of bitrate
         "-vf",
         "scale=-2:720",
         "-c:v",
-        "libx264",
+        "libx265",
         "-preset",
         "fast",
         "-c:a",
@@ -134,6 +133,29 @@ def compress_video(input_path):
         "-y",
         temp_output,
     ]
+
+    # command = [
+    #     "nice",
+    #     "-n",
+    #     "19",
+    #     "ffmpeg",
+    #     "-i",
+    #     input_path,
+    #     "-b:v",
+    #     f"{target_bitrate_kbps}k",
+    #     "-vf",
+    #     "scale=-2:720",
+    #     "-c:v",
+    #     "libx264",
+    #     "-preset",
+    #     "fast",
+    #     "-c:a",
+    #     "aac",
+    #     "-b:a",
+    #     "128k",
+    #     "-y",
+    #     temp_output,
+    # ]
 
     try:
         subprocess.run(command, check=True)
