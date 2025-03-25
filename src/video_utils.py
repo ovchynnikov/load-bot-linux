@@ -140,7 +140,7 @@ def compress_video(input_path):
         # "-preset",
         # "fast",
         "-profile:v",
-        "high",
+        "main",
         "-level",
         "4.2",
         "-c:a",
