@@ -13,7 +13,7 @@ RUN --mount=type=bind,target=/tmp/requirements.txt,source=src/requirements.txt \
     libva-x11-2 \
     libva2 \
     vainfo \
-    && add-apt-repository --component non-free \
+    && add-apt-repository --component non-free -y \
     && apt-get update \
     && apt-get install intel-media-va-driver-non-free \
     && apt-get update \
