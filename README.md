@@ -37,7 +37,7 @@ docker run -d --name downloader-bot --restart always --env-file .env -v /absolut
 ```
 or if you want use GPU power of intel chip and set USE_GPU_COMPRESSING=True variable
 ```
-docker run --rm --device /dev/dri:/dev/dri .....
+docker run --rm --device /dev/dri:/dev/dri --group-add video downloader-bot .....
 ```
 Alternatively, you can use **docker-compose**
 ```
