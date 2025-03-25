@@ -8,8 +8,10 @@ LABEL org.opencontainers.image.source="https://github.com/ovchynnikov/load-bot-l
 RUN --mount=type=bind,target=/tmp/requirements.txt,source=src/requirements.txt \
     apt-get update && apt-get install --no-install-recommends -y \
     ffmpeg \
+    intel-media-va-driver \
     libva-drm2 \
     libva-x11-2 \
+    libva2 \
     vainfo \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
     && python -m pip install --no-cache-dir -r /tmp/requirements.txt
