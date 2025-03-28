@@ -104,7 +104,9 @@ def is_bot_mentioned(message_text: str) -> bool:
 
 def clean_url(message_text: str) -> str:
     """
-    Cleans the URL from the message text by removing unwanted characters.
+    Extracts and cleans the first URL found in the message text.
+    Uses a regular expression to search for the first occurrence
+    of a URL in the message
 
     Args:
         message_text (str): The text of the message containing the URL.
@@ -112,7 +114,9 @@ def clean_url(message_text: str) -> str:
     Returns:
         str: The cleaned URL.
     """
-    return message_text.replace("**", "") if message_text.startswith("**") else message_text
+    url_pattern = re.compile(r'(https?://\S+)')
+    match = url_pattern.search(message_text)
+    return match.group(1) if match else message_text
 
 
 def is_large_file(file_path: str, max_size_mb: int = 50) -> bool:
