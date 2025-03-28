@@ -3,6 +3,7 @@
 import os
 import random
 import json
+import re
 import asyncio
 from functools import lru_cache
 from dotenv import load_dotenv
