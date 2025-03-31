@@ -1,4 +1,4 @@
 python-telegram-bot[ext]==22.0
 python-dotenv==1.0.1
-yt-dlp==2025.3.25
+yt-dlp==2025.3.27
 gallery-dl==1.29.2
