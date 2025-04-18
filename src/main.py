@@ -34,7 +34,7 @@ if language == "ua":
 send_user_info_with_healthcheck = os.getenv("SEND_USER_INFO_WITH_HEALTHCHECK", "False").lower() == "true"
 USE_LLM = os.getenv("USE_LLM", "False").lower() == "true"
 LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:4b")
-LLM_API_ADDR = os.getenv("LLM_API_ADDR", "http://localhost:11434/")
+LLM_API_ADDR = os.getenv("LLM_API_ADDR", "http://localhost:11434")
 TELEGRAM_WRITE_TIMEOUT = 8000
 TELEGRAM_READ_TIMEOUT = 8000
 
