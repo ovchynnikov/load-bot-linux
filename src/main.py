@@ -442,7 +442,7 @@ async def respond_with_llm_message(update):
     message_text = update.message.text
     # Remove bot mention from the message
     prompt = message_text.replace("@your_bot_username", "").strip()
-    
+
     try:
         # Make request to Ollama API
         async with aiohttp.ClientSession() as session:
@@ -452,15 +452,15 @@ async def respond_with_llm_message(update):
                     "model": LLM_MODEL,
                     "prompt": prompt,
                     "stream": False,
-                    "num_predict": 200  # Limit response to approximately 200 tokens
-                }
+                    "num_predict": 200,  # Limit response to approximately 200 tokens
+                },
             ) as response:
                 if response.status == 200:
                     result = await response.json()
                     bot_response = result.get("response", "Sorry, I couldn't generate a response.")
                 else:
                     bot_response = "Sorry, I encountered an error while processing your request."
-                    
+
         await update.message.reply_text(bot_response)
     except aiohttp.ClientError as e:
         print(f"Network error in LLM request: {e}")
