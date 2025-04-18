@@ -171,6 +171,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
 
     message_text = update.message.text.strip()
 
+    # Check if user is not allowed
+    if is_user_or_chat_not_allowed(update.effective_user.username, update.effective_chat.id):
+        await inform_user_not_allowed(update)
+        return
+
     # Handle bot mention response
     if is_bot_mentioned(message_text):
         if USE_LLM:
@@ -181,11 +186,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
 
     # Ignore if message doesn't contain http
     if "http" not in message_text:
-        return
-
-    # Check if user is not allowed
-    if is_user_or_chat_not_allowed(update.effective_user.username, update.effective_chat.id):
-        await inform_user_not_allowed(update)
         return
 
     message_text = message_text.replace("** ", "**")
