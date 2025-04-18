@@ -445,17 +445,17 @@ async def respond_with_llm_message(update):
     # Remove bot mention from the message
     prompt = message_text.replace("@your_bot_username", "").strip()
 
+    # Add context to identify and match language
+    context_prompt = f"""Identify the language of the following message and respond in the same language.
+Keep your response concise.
+
+Message: {prompt}"""
+
     try:
-        # Make request to Ollama API
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{LLM_API_ADDR}/api/generate",
-                json={
-                    "model": LLM_MODEL,
-                    "prompt": prompt,
-                    "stream": False,
-                    "num_predict": 200,  # Limit response to approximately 200 tokens
-                },
+                json={"model": LLM_MODEL, "prompt": context_prompt, "stream": False, "num_predict": 200},
             ) as response:
                 if response.status == 200:
                     result = await response.json()
