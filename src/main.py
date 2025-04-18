@@ -189,8 +189,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
     if "http" not in message_text:
         return
 
-
-
     message_text = message_text.replace("** ", "**")
 
     # Check if URL is from a supported site. Ignore if it's from a group or channel
