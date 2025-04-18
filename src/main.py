@@ -447,7 +447,7 @@ async def respond_with_llm_message(update):
 
     # Add context to identify and match language
     context_prompt = f"""Identify the language of the following message and respond in the same language.
-Keep your response concise.
+Keep your response concise. If the language is not English, respond in Ukrainian.
 
 Message: {prompt}"""
 
