@@ -455,12 +455,7 @@ Message: {prompt}"""
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{LLM_API_ADDR}/api/generate",
-                json={
-                    "model": LLM_MODEL,
-                    "prompt": context_prompt,
-                    "stream": False,
-                    "num_predict": 200
-                },
+                json={"model": LLM_MODEL, "prompt": context_prompt, "stream": False, "num_predict": 200},
             ) as response:
                 if response.status == 200:
                     result = await response.json()
