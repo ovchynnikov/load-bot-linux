@@ -444,13 +444,13 @@ async def respond_with_llm_message(update):
     message_text = update.message.text
     # Remove bot mention from the message
     prompt = message_text.replace("@your_bot_username", "").strip()
-    
+
     # Add context to identify and match language
     context_prompt = f"""Identify the language of the following message and respond in the same language.
 Keep your response concise and friendly.
 
 Message: {prompt}"""
-    
+
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
