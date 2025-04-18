@@ -35,6 +35,7 @@ send_user_info_with_healthcheck = os.getenv("SEND_USER_INFO_WITH_HEALTHCHECK", "
 USE_LLM = os.getenv("USE_LLM", "False").lower() == "true"
 LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:4b")
 LLM_API_ADDR = os.getenv("LLM_API_ADDR", "http://localhost:11434")
+ALLOWED_CHAT_IDS_LLM = os.getenv("ALLOWED_CHAT_IDS_LLM", "")
 TELEGRAM_WRITE_TIMEOUT = 8000
 TELEGRAM_READ_TIMEOUT = 8000
 
@@ -173,7 +174,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
 
     # Handle bot mention response
     if is_bot_mentioned(message_text):
-        if USE_LLM:
+        if USE_LLM and ALLOWED_CHAT_IDS_LLM == str(update.effective_chat.id):
             await respond_with_llm_message(update)
         else:
             await respond_with_bot_message(update)
