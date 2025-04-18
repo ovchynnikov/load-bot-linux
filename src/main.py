@@ -462,12 +462,15 @@ async def respond_with_llm_message(update):
                     bot_response = "Sorry, I encountered an error while processing your request."
 
         await update.message.reply_text(bot_response)
+    except (aiohttp.ClientResponseError, aiohttp.ContentTypeError) as e:
+        print(f"Response error in LLM request: {e}")
+        await update.message.reply_text("Sorry, I received an invalid response from the AI service.")
     except aiohttp.ClientError as e:
         print(f"Network error in LLM request: {e}")
         await update.message.reply_text("Sorry, I couldn't connect to the AI service.")
-    except Exception as e:
-        print(f"Error in LLM request: {e}")
-        await update.message.reply_text("Sorry, I encountered an error while processing your request.")
+    except ValueError as e:
+        print(f"Data processing error in LLM request: {e}")
+        await update.message.reply_text("Sorry, I had trouble processing the AI service response.")
 
 
 def main():
