@@ -170,7 +170,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
     debug("Received a new message: %s", update.message.text)
 
     message_text = update.message.text.strip()
-
     # Check if user is not allowed
     if is_user_or_chat_not_allowed(update.effective_user.username, update.effective_chat.id):
         await inform_user_not_allowed(update)
@@ -442,8 +441,6 @@ async def send_pic(update: Update, pic) -> None:
 async def respond_with_llm_message(update):
     """Handle LLM responses when bot is mentioned."""
     message_text = update.message.text
-    # Remove bot mention from the message
-
 
     try:
         async with aiohttp.ClientSession() as session:
