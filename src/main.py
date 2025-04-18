@@ -101,7 +101,9 @@ def is_bot_mentioned(message_text: str) -> bool:
         bool: True if the bot is mentioned, False otherwise.
     """
     bot_trigger_words = ["ботяра", "bot_health"]
-    return any(word in message_text.lower().split() for word in bot_trigger_words)
+    # Remove all non-letter characters
+    cleaned_text = ''.join(char for char in message_text.lower() if char.isalpha() or char.isspace())
+    return any(word in cleaned_text for word in bot_trigger_words)
 
 
 def clean_url(message_text: str) -> str:
