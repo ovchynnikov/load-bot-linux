@@ -4,6 +4,7 @@ import os
 import random
 import json
 import asyncio
+import aiohttp
 from functools import lru_cache
 from dotenv import load_dotenv
 from telegram import Update, InputMediaPhoto, InputMediaVideo
@@ -31,8 +32,9 @@ if language == "ua":
 
 # Reply with user data for Healthcheck
 send_user_info_with_healthcheck = os.getenv("SEND_USER_INFO_WITH_HEALTHCHECK", "False").lower() == "true"
-
-
+USE_LLM = os.getenv("USE_LLM", "False").lower() == "true"
+LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:4b")
+LLM_API_ADDR = os.getenv("LLM_API_ADDR", "http://localhost:11434/")
 TELEGRAM_WRITE_TIMEOUT = 8000
 TELEGRAM_READ_TIMEOUT = 8000
 
@@ -169,7 +171,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
 
     # Handle bot mention response
     if is_bot_mentioned(message_text):
-        await respond_with_bot_message(update)
+        if USE_LLM:
+            await respond_with_llm_message(update)
+        else:
+            await respond_with_bot_message(update)
         return
 
     # Ignore if message doesn't contain http
@@ -430,6 +435,39 @@ async def send_pic(update: Update, pic) -> None:
         finally:
             for file in opened_files:
                 file.close()
+
+
+async def respond_with_llm_message(update):
+    """Handle LLM responses when bot is mentioned."""
+    message_text = update.message.text
+    # Remove bot mention from the message
+    prompt = message_text.replace("@your_bot_username", "").strip()
+    
+    try:
+        # Make request to Ollama API
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{LLM_API_ADDR}/api/generate",
+                json={
+                    "model": LLM_MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    "num_predict": 200  # Limit response to approximately 200 tokens
+                }
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    bot_response = result.get("response", "Sorry, I couldn't generate a response.")
+                else:
+                    bot_response = "Sorry, I encountered an error while processing your request."
+                    
+        await update.message.reply_text(bot_response)
+    except aiohttp.ClientError as e:
+        print(f"Network error in LLM request: {e}")
+        await update.message.reply_text("Sorry, I couldn't connect to the AI service.")
+    except Exception as e:
+        print(f"Error in LLM request: {e}")
+        await update.message.reply_text("Sorry, I encountered an error while processing your request.")
 
 
 def main():
