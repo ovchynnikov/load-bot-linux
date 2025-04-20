@@ -109,7 +109,7 @@ def is_bot_mentioned(message_text: str) -> bool:
 
 def clean_url(message_text: str) -> str:
     """
-    Cleans the URL from the message text by removing unwanted characters.
+    Cleans the URL from the message text by removing unwanted characters and usernames.
 
     Args:
         message_text (str): The text of the message containing the URL.
@@ -117,7 +117,16 @@ def clean_url(message_text: str) -> str:
     Returns:
         str: The cleaned URL.
     """
-    return message_text.replace("**", "") if message_text.startswith("**") else message_text
+    # Remove markdown formatting
+    url = message_text.replace("**", "")
+
+    # Split by space and take the first part (the URL)
+    url = url.split()[0]
+
+    # Remove any @username from the end of the URL
+    url = url.split('@')[0]
+
+    return url
 
 
 def is_large_file(file_path: str, max_size_mb: int = 50) -> bool:
