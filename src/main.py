@@ -21,6 +21,7 @@ from video_utils import (
     is_video_duration_over_limits,
     is_video_too_long_to_download,
 )
+import re
 
 load_dotenv()
 
@@ -441,12 +442,14 @@ async def send_pic(update: Update, pic) -> None:
 async def respond_with_llm_message(update):
     """Handle LLM responses when bot is mentioned."""
     message_text = update.message.text
+    # Remove bot mention and any punctuation after it
+    prompt = re.sub(r'ботяра[^\w\s]*', '', message_text.lower()).strip()
 
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{LLM_API_ADDR}/api/generate",
-                json={"model": LLM_MODEL, "prompt": message_text, "stream": False, "num_predict": 200},
+                json={"model": LLM_MODEL, "prompt": prompt, "stream": False, "num_predict": 200},
             ) as response:
                 if response.status == 200:
                     result = await response.json()
