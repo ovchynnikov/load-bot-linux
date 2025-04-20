@@ -21,6 +21,7 @@ from video_utils import (
     is_video_duration_over_limits,
     is_video_too_long_to_download,
 )
+import re
 
 load_dotenv()
 
@@ -31,7 +32,8 @@ if language == "ua":
     language = "uk"
 
 # Reply with user data for Healthcheck
-send_user_info_with_healthcheck = os.getenv("SEND_USER_INFO_WITH_HEALTHCHECK", "False").lower() == "true"
+send_user_info_with_healthcheck = os.getenv(
+    "SEND_USER_INFO_WITH_HEALTHCHECK", "False").lower() == "true"
 USE_LLM = os.getenv("USE_LLM", "False").lower() == "true"
 LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:4b")
 LLM_API_ADDR = os.getenv("LLM_API_ADDR", "http://localhost:11434")
@@ -102,7 +104,8 @@ def is_bot_mentioned(message_text: str) -> bool:
     """
     bot_trigger_words = ["ботяра", "bot_health"]
     # Remove all non-letter characters
-    cleaned_text = ''.join(char for char in message_text.lower() if char.isalpha() or char.isspace())
+    cleaned_text = ''.join(char for char in message_text.lower()
+                           if char.isalpha() or char.isspace())
     return any(word in cleaned_text for word in bot_trigger_words)
 
 
@@ -230,7 +233,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
 
         # Ensure that not more than 10 media files are processed
         if len(media_path) > 10:
-            debug("Too many media files to process, enabling throttle. Amount: %s", len(media_path))
+            debug("Too many media files to process, enabling throttle. Amount: %s", len(
+                media_path))
             throttle = True
 
         for pathobj in media_path:
@@ -260,13 +264,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
 
         if len(video_path) > 1:
             # Group videos
-            video_path = [video_path[i : i + 2] for i in range(0, len(video_path), 2)]
+            video_path = [video_path[i: i + 2]
+                          for i in range(0, len(video_path), 2)]
             # TODO: Implement a total size calculation for the group of videos  # pylint: disable=fixme
             # and resort to sending them one by one if the total size exceeds the limit
 
         if len(pic_path) > 1:
             # Group pictures
-            pic_path = [pic_path[i : i + 10] for i in range(0, len(pic_path), 10)]
+            pic_path = [pic_path[i: i + 10]
+                        for i in range(0, len(pic_path), 10)]
             debug("Grouped pictures length: %s", len(pic_path))
 
         for video in video_path:
@@ -305,8 +311,10 @@ async def respond_with_bot_message(update: Update) -> None:
     Returns:
         None
     """
-    response_message = random.choice(responses)  # Select a random response from the predefined list
-    info(" requested [Chat ID]: %s by the user %s", update.effective_chat.id, update.effective_user.username)
+    response_message = random.choice(
+        responses)  # Select a random response from the predefined list
+    info(" requested [Chat ID]: %s by the user %s",
+         update.effective_chat.id, update.effective_user.username)
 
     if send_user_info_with_healthcheck:
         response_message += f"\n[Chat ID]: {update.effective_chat.id}\n[Username]: {update.effective_user.username}"
@@ -441,16 +449,24 @@ async def send_pic(update: Update, pic) -> None:
 async def respond_with_llm_message(update):
     """Handle LLM responses when bot is mentioned."""
     message_text = update.message.text
+    # Remove bot mention and any punctuation after it
+    prompt = re.sub(r'ботяра[^\w\s]*', '', message_text.lower()).strip()
 
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{LLM_API_ADDR}/api/generate",
-                json={"model": LLM_MODEL, "prompt": message_text, "stream": False, "num_predict": 200},
+                json={
+                    "model": LLM_MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    "num_predict": 200
+                },
             ) as response:
                 if response.status == 200:
                     result = await response.json()
-                    bot_response = result.get("response", "Sorry, I couldn't generate a response.")
+                    bot_response = result.get(
+                        "response", "Sorry, I couldn't generate a response.")
                 else:
                     bot_response = "Sorry, I encountered an error while processing your request."
 
@@ -494,7 +510,8 @@ def main():
     """
     bot_token = os.getenv("BOT_TOKEN")
     application = Application.builder().token(bot_token).build()
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND, handle_message))
     # This handler will receive every error which happens in your bot
     application.add_error_handler(error_handler)
     info("Bot started. Ctrl+C to stop")
