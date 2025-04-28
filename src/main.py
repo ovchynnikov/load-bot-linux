@@ -123,8 +123,9 @@ def clean_url(message_text: str) -> str:
     # Split by space and take the first part (the URL)
     url = url.split()[0]
 
-    # Remove any @username from the end of the URL
-    url = url.split('@')[0]
+    # Remove any @username from the end of the URL only if it's an Instagram URL
+    if "instagram.com" in url:
+        url = url.split('@')[0]
 
     return url
 
