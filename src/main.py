@@ -34,8 +34,8 @@ if language == "ua":
 # Reply with user data for Healthcheck
 send_user_info_with_healthcheck = os.getenv("SEND_USER_INFO_WITH_HEALTHCHECK", "False").lower() == "true"
 USE_LLM = os.getenv("USE_LLM", "False").lower() == "true"
-LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:4b")
-LLM_API_ADDR = os.getenv("LLM_API_ADDR", "http://localhost:11434")
+# LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:4b")
+LLM_API_ADDR = os.getenv("LLM_API_ADDR", "http://localhost:11435")
 TELEGRAM_WRITE_TIMEOUT = 8000
 TELEGRAM_READ_TIMEOUT = 8000
 
@@ -461,14 +461,14 @@ async def respond_with_llm_message(update):
                 f"{LLM_API_ADDR}/completion",
                 json={
                     "prompt": prompt,
-                    "n_predict": 200,
+                    "n_predict": 1024,
                     "temperature": 0.7,
                     "stop": ["</s>", "User:", "Assistant:"],
                 },
             ) as response:
                 if response.status == 200:
                     result = await response.json()
-                    bot_response = result.get("content", "Sorry, I couldn't generate a response.")
+                    bot_response = result.get("content", "Sorry, I couldn't generate a response.").strip()
                 else:
                     bot_response = "Sorry, I encountered an error while processing your request."
 
