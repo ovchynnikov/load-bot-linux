@@ -458,12 +458,17 @@ async def respond_with_llm_message(update):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                f"{LLM_API_ADDR}/api/generate",
-                json={"model": LLM_MODEL, "prompt": prompt, "stream": False, "num_predict": 200},
+                f"{LLM_API_ADDR}/completion",
+                json={
+                    "prompt": prompt,
+                    "n_predict": 200,
+                    "temperature": 0.7,
+                    "stop": ["</s>", "User:", "Assistant:"],
+                },
             ) as response:
                 if response.status == 200:
                     result = await response.json()
-                    bot_response = result.get("response", "Sorry, I couldn't generate a response.")
+                    bot_response = result.get("content", "Sorry, I couldn't generate a response.")
                 else:
                     bot_response = "Sorry, I encountered an error while processing your request."
 
