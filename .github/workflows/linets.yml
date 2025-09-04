@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Lint Dockerfile with hadolint
         uses: hadolint/hadolint-action@v3.1.0
         with:
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Install jq
         run: sudo apt-get install -y jq
       - name: Lint JSON Files
