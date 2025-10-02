@@ -564,7 +564,7 @@ async def respond_with_llm_message(update):
             if language == "uk"
             else "Sorry, I encountered an error while processing your request."
         )
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         error("Unexpected error in Gemini API request: %s", e)
         await update.message.reply_text(
             "Вибачте, я не можу згенерувати відповідь."
