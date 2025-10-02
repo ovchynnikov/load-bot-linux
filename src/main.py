@@ -540,18 +540,37 @@ async def respond_with_llm_message(update):
         # Handle response with safety filter checks
         if hasattr(response, 'candidates') and response.candidates:
             candidate = response.candidates[0]
+            debug("Response candidate finish_reason: %s", getattr(candidate, 'finish_reason', 'None'))
+            debug("Response candidate safety_ratings: %s", getattr(candidate, 'safety_ratings', 'None'))
+            
             if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
-                debug("Safety filter triggered - finish_reason: 2, original prompt: %s", prompt)
-                bot_response = (
-                    "Вибачте, я не можу відповісти на це питання через обмеження безпеки."
-                    if language == "uk"
-                    else "Sorry, I can't respond to that topic due to safety guidelines."
-                )
+                debug("Safety filter triggered - finish_reason: 2, trying simpler approach")
+                # Try a much simpler, generic response for blocked content
+                try:
+                    simple_response = await asyncio.to_thread(
+                        model.generate_content,
+                        "Відповідь українською мовою: дай загальну інформацію про: " + prompt,
+                        safety_settings=safety_settings,
+                    )
+                    if simple_response.text:
+                        bot_response = f"Можу розповісти загалом: {simple_response.text.strip()}"
+                    else:
+                        bot_response = (
+                            "Вибачте, не можу надати детальну відповідь на це питання."
+                            if language == "uk"
+                            else "Sorry, I can't provide a detailed answer to this question."
+                        )
+                except:
+                    bot_response = (
+                        "Вибачте, не можу надати детальну відповідь на це питання."
+                        if language == "uk" 
+                        else "Sorry, I can't provide a detailed answer to this question."
+                    )
             elif response.text:
                 # Remove Markdown formatting from response
                 bot_response = response.text.strip()
                 # Remove common Markdown syntax
-                bot_response = bot_response.replace('**', '')  # Bold text
+                bot_response = re.sub(r'\*+', '', bot_response)  # Bold text
                 bot_response = bot_response.replace('*', '')  # Italic text
                 bot_response = bot_response.replace('`', '')  # Code blocks
                 bot_response = bot_response.replace('#', '')  # Headers
