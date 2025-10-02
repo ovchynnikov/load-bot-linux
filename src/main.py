@@ -504,15 +504,12 @@ async def respond_with_llm_message(update):
             else:
                 bot_response = "Sorry, I can't generate images, but I can describe in detail what you're asking for! For example, I can tell you about a car: its color, shape, design features, etc. What specifically interests you?"
 
-
             await update.message.reply_text(bot_response)
             return
-
 
         # Initialize the Gemini model
         debug("Initializing Gemini model: gemini-2.5-flash")
         model = genai.GenerativeModel(GEMINI_MODEL)
-
 
         # Generate response using Gemini
         debug("Sending request to Gemini API")
@@ -528,7 +525,6 @@ async def respond_with_llm_message(update):
         )
         # debug("Successfully received response from Gemini API")
 
-
         # Handle response with safety filter checks
         if hasattr(response, 'candidates') and response.candidates:
             candidate = response.candidates[0]
@@ -543,10 +539,10 @@ async def respond_with_llm_message(update):
                 # Remove Markdown formatting from response
                 bot_response = response.text.strip()
                 # Remove common Markdown syntax
-                bot_response = bot_response.replace('**', '')  # Bold text
-                bot_response = bot_response.replace('*', '')   # Italic text
-                bot_response = bot_response.replace('`', '')   # Code blocks
-                bot_response = bot_response.replace('#', '')   # Headers
+                bot_response = bot_response.replace('**', '') # Bold text
+                bot_response = bot_response.replace('*', '')  # Italic text
+                bot_response = bot_response.replace('`', '')  # Code blocks
+                bot_response = bot_response.replace('#', '')  # Headers
             else:
                 bot_response = (
                     "Вибачте, я не можу згенерувати відповідь."
@@ -561,21 +557,21 @@ async def respond_with_llm_message(update):
             )
 
         await update.message.reply_text(bot_response)
-        
+
     except (ValueError, RuntimeError) as e:
         error("Error in Gemini API request: %s", e)
         await update.message.reply_text(
             "Вибачте, я не можу згенерувати відповідь."
             if language == "uk"
             else "Sorry, I encountered an error while processing your request."
-            )
+        )
     except Exception as e:
         error("Unexpected error in Gemini API request: %s", e)
         await update.message.reply_text(
             "Вибачте, я не можу згенерувати відповідь."
             if language == "uk"
             else "Sorry, I encountered an unexpected error while processing your request."
-            )
+        )
 
 
 def main():
