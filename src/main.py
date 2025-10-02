@@ -510,17 +510,30 @@ async def respond_with_llm_message(update):
         debug("Initializing Gemini model: gemini-2.5-flash")
         model = genai.GenerativeModel(GEMINI_MODEL)
 
-        # Generate response using Gemini
+        # Try different approach - rephrase any potentially problematic prompts
+        debug("Original prompt: %s", prompt)
+        safe_prompt = f"Відповідай українською мовою як дружній асистент. Питання користувача: {prompt}"
+        debug("Modified safe prompt: %s", safe_prompt)
+        
+        # Generate response using Gemini with both safety settings and safe prompting
         debug("Sending request to Gemini API")
+        safety_settings = {
+            genai.types.HarmCategory.HARM_CATEGORY_HARASSMENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
+            genai.types.HarmCategory.HARM_CATEGORY_HATE_SPEECH: genai.types.HarmBlockThreshold.BLOCK_NONE,
+            genai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: genai.types.HarmBlockThreshold.BLOCK_NONE,
+            genai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
+        }
+        
         response = await asyncio.to_thread(
             model.generate_content,
-            prompt,
+            safe_prompt,
             generation_config=genai.types.GenerationConfig(
-                temperature=0.8,
-                top_p=0.95,
-                top_k=40,
+                temperature=0.7,
+                top_p=0.9,
+                top_k=30,
                 max_output_tokens=1024,
             ),
+            safety_settings=safety_settings,
         )
         # debug("Successfully received response from Gemini API")
 
