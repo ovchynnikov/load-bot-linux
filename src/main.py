@@ -514,7 +514,7 @@ async def respond_with_llm_message(update):
         debug("Original prompt: %s", prompt)
         safe_prompt = f"Відповідай українською мовою як дружній асистент. Питання користувача: {prompt}"
         debug("Modified safe prompt: %s", safe_prompt)
-        
+
         # Generate response using Gemini with both safety settings and safe prompting
         debug("Sending request to Gemini API")
         safety_settings = {
@@ -523,7 +523,7 @@ async def respond_with_llm_message(update):
             genai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: genai.types.HarmBlockThreshold.BLOCK_NONE,
             genai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
         }
-        
+
         response = await asyncio.to_thread(
             model.generate_content,
             safe_prompt,
@@ -542,7 +542,7 @@ async def respond_with_llm_message(update):
             candidate = response.candidates[0]
             debug("Response candidate finish_reason: %s", getattr(candidate, 'finish_reason', 'None'))
             debug("Response candidate safety_ratings: %s", getattr(candidate, 'safety_ratings', 'None'))
-            
+
             if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
                 debug("Safety filter triggered - finish_reason: 2, trying simpler approach")
                 # Try a much simpler, generic response for blocked content
@@ -563,7 +563,7 @@ async def respond_with_llm_message(update):
                 except:
                     bot_response = (
                         "Вибачте, не можу надати детальну відповідь на це питання."
-                        if language == "uk" 
+                        if language == "uk"
                         else "Sorry, I can't provide a detailed answer to this question."
                     )
             elif response.text:
