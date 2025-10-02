@@ -195,7 +195,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
     debug("Bot mentioned check: %s for message: %s", bot_mentioned, message_text)
     debug("USE_LLM setting: %s", USE_LLM)
     debug("GEMINI_API_KEY configured: %s", bool(GEMINI_API_KEY))
-    
+
+
     if bot_mentioned:
         if USE_LLM:
             debug("Calling LLM response function")
@@ -476,25 +477,43 @@ async def respond_with_llm_message(update):
 
     try:
         # Check if user is asking for image generation and modify prompt
-        image_keywords = ['картинку', 'картинка', 'зображення', 'image', 'фото', 'picture', 'згенеруй', 'generate', 'створи', 'create']
+        image_keywords = [
+            'картинку',
+            'картинка',
+            'зображення',
+            'image',
+            'фото',
+            'picture',
+            'згенеруй',
+            'generate',
+            'створи',
+            'create',
+            'покажи',
+            'покажи мне',
+            'покажи мені',
+        ]
         # Check both original message and processed prompt
         original_text = message_text.lower()
-        if any(word in original_text for word in image_keywords) or any(word in prompt.lower() for word in image_keywords):
+        if any(word in original_text for word in image_keywords) or any(
+            word in prompt.lower() for word in image_keywords
+        ):
             # Directly respond to image requests without calling Gemini
             debug("Image generation request detected, sending direct response")
             if language == "uk":
                 bot_response = "Вибачте, я не можу генерувати зображення, але можу детально описати те, що ви просите! Наприклад, я можу розповісти про машину: її колір, форму, особливості дизайну тощо. Що саме вас цікавить?"
             else:
                 bot_response = "Sorry, I can't generate images, but I can describe in detail what you're asking for! For example, I can tell you about a car: its color, shape, design features, etc. What specifically interests you?"
-            
+
+
             await update.message.reply_text(bot_response)
             return
-        
-        
+
+
         # Initialize the Gemini model
         debug("Initializing Gemini model: gemini-2.5-flash")
         model = genai.GenerativeModel(GEMINI_MODEL)
-        
+
+
         # Generate response using Gemini
         debug("Sending request to Gemini API")
         response = await asyncio.to_thread(
@@ -505,31 +524,58 @@ async def respond_with_llm_message(update):
                 top_p=0.95,
                 top_k=40,
                 max_output_tokens=1024,
-            )
+            ),
         )
         # debug("Successfully received response from Gemini API")
-        
+
+
         # Handle response with safety filter checks
         if hasattr(response, 'candidates') and response.candidates:
             candidate = response.candidates[0]
             if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
                 debug("Safety filter triggered - finish_reason: 2, original prompt: %s", prompt)
-                bot_response = "Вибачте, я не можу відповісти на це питання через обмеження безпеки." if language == "uk" else "Sorry, I can't respond to that topic due to safety guidelines."
+                bot_response = (
+                    "Вибачте, я не можу відповісти на це питання через обмеження безпеки."
+                    if language == "uk"
+                    else "Sorry, I can't respond to that topic due to safety guidelines."
+                )
             elif response.text:
+                # Remove Markdown formatting from response
                 bot_response = response.text.strip()
+                # Remove common Markdown syntax
+                bot_response = bot_response.replace('**', '')  # Bold text
+                bot_response = bot_response.replace('*', '')   # Italic text
+                bot_response = bot_response.replace('`', '')   # Code blocks
+                bot_response = bot_response.replace('#', '')   # Headers
             else:
-                bot_response = "Вибачте, я не можу згенерувати відповідь." if language == "uk" else "Sorry, I couldn't generate a response."
+                bot_response = (
+                    "Вибачте, я не можу згенерувати відповідь."
+                    if language == "uk"
+                    else "Sorry, I couldn't generate a response."
+                )
         else:
-            bot_response = "Вибачте, я не можу згенерувати відповідь." if language == "uk" else "Sorry, I couldn't generate a response."
+            bot_response = (
+                "Вибачте, я не можу згенерувати відповідь."
+                if language == "uk"
+                else "Sorry, I couldn't generate a response."
+            )
 
         await update.message.reply_text(bot_response)
         
     except (ValueError, RuntimeError) as e:
         error("Error in Gemini API request: %s", e)
-        await update.message.reply_text("Вибачте, я не можу згенерувати відповідь." if language == "uk" else "Sorry, I encountered an error while processing your request.")
+        await update.message.reply_text(
+            "Вибачте, я не можу згенерувати відповідь."
+            if language == "uk"
+            else "Sorry, I encountered an error while processing your request."
+            )
     except Exception as e:
         error("Unexpected error in Gemini API request: %s", e)
-        await update.message.reply_text("Вибачте, я не можу згенерувати відповідь." if language == "uk" else "Sorry, I encountered an unexpected error while processing your request.")
+        await update.message.reply_text(
+            "Вибачте, я не можу згенерувати відповідь."
+            if language == "uk"
+            else "Sorry, I encountered an unexpected error while processing your request."
+            )
 
 
 def main():
