@@ -15,5 +15,5 @@ env/
 venv/
 ENV/
 .VENV/
-
+.DS_Store
 .codegpt

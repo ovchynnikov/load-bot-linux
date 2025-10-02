@@ -4,7 +4,8 @@ import os
 import random
 import json
 import asyncio
-import aiohttp
+import re
+import google.generativeai as genai
 from functools import lru_cache
 from dotenv import load_dotenv
 from telegram import Update, InputMediaPhoto, InputMediaVideo
@@ -21,7 +22,6 @@ from video_utils import (
     is_video_duration_over_limits,
     is_video_too_long_to_download,
 )
-import re
 
 load_dotenv()
 
@@ -34,10 +34,14 @@ if language == "ua":
 # Reply with user data for Healthcheck
 send_user_info_with_healthcheck = os.getenv("SEND_USER_INFO_WITH_HEALTHCHECK", "False").lower() == "true"
 USE_LLM = os.getenv("USE_LLM", "False").lower() == "true"
-# LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:4b")
-LLM_API_ADDR = os.getenv("LLM_API_ADDR", "http://localhost:11435")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 TELEGRAM_WRITE_TIMEOUT = 8000
 TELEGRAM_READ_TIMEOUT = 8000
+
+# Configure Gemini API
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 
 # Cache responses from JSON file
@@ -187,10 +191,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
         return
 
     # Handle bot mention response
-    if is_bot_mentioned(message_text):
+    bot_mentioned = is_bot_mentioned(message_text)
+    debug("Bot mentioned check: %s for message: %s", bot_mentioned, message_text)
+    debug("USE_LLM setting: %s", USE_LLM)
+    debug("GEMINI_API_KEY configured: %s", bool(GEMINI_API_KEY))
+
+    if bot_mentioned:
         if USE_LLM:
+            debug("Calling LLM response function")
             await respond_with_llm_message(update)
         else:
+            debug("Calling regular bot response function")
             await respond_with_bot_message(update)
         return
 
@@ -450,54 +461,116 @@ async def send_pic(update: Update, pic) -> None:
 
 
 async def respond_with_llm_message(update):
-    """Handle LLM responses when bot is mentioned."""
+    """Handle LLM responses when bot is mentioned using Google Gemini API."""
+    debug("LLM response function called")
     message_text = update.message.text
     # Remove bot mention and any punctuation after it
     prompt = re.sub(r'ботяра[^\w\s]*', '', message_text.lower()).strip()
+    debug("Original message: %s", message_text)
+    debug("Processed prompt: %s", prompt)
+
+    if not GEMINI_API_KEY:
+        # debug("GEMINI_API_KEY not configured")
+        await update.message.reply_text("Sorry, AI service is not configured.")
+        return
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{LLM_API_ADDR}/completion",
-                json={
-                    "prompt": prompt,
-                    "n_predict": 1024,
-                    "temperature": 0.8,
-                    "top_k": 40,
-                    "top_p": 0.95,
-                    "min_p": 0.05,
-                    "dynatemp_range": 0,
-                    "dynatemp_exponent": 1,
-                    "typical_p": 1,
-                    "xtc_probability": 0,
-                    "xtc_threshold": 0.1,
-                    "repeat_last_n": 64,
-                    "repeat_penalty": 1,
-                    "presence_penalty": 0,
-                    "frequency_penalty": 0,
-                    "dry_multiplier": 0,
-                    "dry_base": 1.75,
-                    "dry_allowed_length": 2,
-                    "dry_penalty_last_n": -1,
-                    "stop": ["</s>", "User:", "Assistant:"],
-                },
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    bot_response = result.get("content", "Sorry, I couldn't generate a response.").strip()
-                else:
-                    bot_response = "Sorry, I encountered an error while processing your request."
+        # Check if user is asking for image generation and modify prompt
+        image_keywords = [
+            'картинку',
+            'картинка',
+            'зображення',
+            'image',
+            'фото',
+            'picture',
+            'згенеруй',
+            'generate',
+            'створи',
+            'create',
+            'покажи',
+            'покажи мне',
+            'покажи мені',
+        ]
+        # Check both original message and processed prompt
+        original_text = message_text.lower()
+        if any(word in original_text for word in image_keywords) or any(
+            word in prompt.lower() for word in image_keywords
+        ):
+            # Directly respond to image requests without calling Gemini
+            debug("Image generation request detected, sending direct response")
+            if language == "uk":
+                bot_response = "Вибачте, я не можу генерувати зображення, але можу детально описати те, що ви просите! Наприклад, я можу розповісти про машину: її колір, форму, особливості дизайну тощо. Що саме вас цікавить?"
+            else:
+                bot_response = "Sorry, I can't generate images, but I can describe in detail what you're asking for! For example, I can tell you about a car: its color, shape, design features, etc. What specifically interests you?"
+
+            await update.message.reply_text(bot_response)
+            return
+
+        # Initialize the Gemini model
+        debug("Initializing Gemini model: gemini-2.5-flash")
+        model = genai.GenerativeModel(GEMINI_MODEL)
+
+        # Generate response using Gemini
+        debug("Sending request to Gemini API")
+        response = await asyncio.to_thread(
+            model.generate_content,
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.8,
+                top_p=0.95,
+                top_k=40,
+                max_output_tokens=1024,
+            ),
+        )
+        # debug("Successfully received response from Gemini API")
+
+        # Handle response with safety filter checks
+        if hasattr(response, 'candidates') and response.candidates:
+            candidate = response.candidates[0]
+            if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
+                debug("Safety filter triggered - finish_reason: 2, original prompt: %s", prompt)
+                bot_response = (
+                    "Вибачте, я не можу відповісти на це питання через обмеження безпеки."
+                    if language == "uk"
+                    else "Sorry, I can't respond to that topic due to safety guidelines."
+                )
+            elif response.text:
+                # Remove Markdown formatting from response
+                bot_response = response.text.strip()
+                # Remove common Markdown syntax
+                bot_response = bot_response.replace('**', '')  # Bold text
+                bot_response = bot_response.replace('*', '')  # Italic text
+                bot_response = bot_response.replace('`', '')  # Code blocks
+                bot_response = bot_response.replace('#', '')  # Headers
+            else:
+                bot_response = (
+                    "Вибачте, я не можу згенерувати відповідь."
+                    if language == "uk"
+                    else "Sorry, I couldn't generate a response."
+                )
+        else:
+            bot_response = (
+                "Вибачте, я не можу згенерувати відповідь."
+                if language == "uk"
+                else "Sorry, I couldn't generate a response."
+            )
 
         await update.message.reply_text(bot_response)
-    except (aiohttp.ClientResponseError, aiohttp.ContentTypeError) as e:
-        print(f"Response error in LLM request: {e}")
-        await update.message.reply_text("Sorry, I received an invalid response from the AI service.")
-    except aiohttp.ClientError as e:
-        print(f"Network error in LLM request: {e}")
-        await update.message.reply_text("Sorry, I couldn't connect to the AI service.")
-    except ValueError as e:
-        print(f"Data processing error in LLM request: {e}")
-        await update.message.reply_text("Sorry, I had trouble processing the AI service response.")
+
+    except (ValueError, RuntimeError) as e:
+        error("Error in Gemini API request: %s", e)
+        await update.message.reply_text(
+            "Вибачте, я не можу згенерувати відповідь."
+            if language == "uk"
+            else "Sorry, I encountered an error while processing your request."
+        )
+    except Exception as e:  # pylint: disable=broad-except
+        error("Unexpected error in Gemini API request: %s", e)
+        await update.message.reply_text(
+            "Вибачте, я не можу згенерувати відповідь."
+            if language == "uk"
+            else "Sorry, I encountered an unexpected error while processing your request."
+        )
 
 
 def main():
