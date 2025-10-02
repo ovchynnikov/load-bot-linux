@@ -196,7 +196,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
     debug("USE_LLM setting: %s", USE_LLM)
     debug("GEMINI_API_KEY configured: %s", bool(GEMINI_API_KEY))
 
-
     if bot_mentioned:
         if USE_LLM:
             debug("Calling LLM response function")
@@ -539,7 +538,7 @@ async def respond_with_llm_message(update):
                 # Remove Markdown formatting from response
                 bot_response = response.text.strip()
                 # Remove common Markdown syntax
-                bot_response = bot_response.replace('**', '') # Bold text
+                bot_response = bot_response.replace('**', '')  # Bold text
                 bot_response = bot_response.replace('*', '')  # Italic text
                 bot_response = bot_response.replace('`', '')  # Code blocks
                 bot_response = bot_response.replace('#', '')  # Headers
