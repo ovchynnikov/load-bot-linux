@@ -35,7 +35,7 @@ if language == "ua":
 send_user_info_with_healthcheck = os.getenv("SEND_USER_INFO_WITH_HEALTHCHECK", "False").lower() == "true"
 USE_LLM = os.getenv("USE_LLM", "False").lower() == "true"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 TELEGRAM_WRITE_TIMEOUT = 8000
 TELEGRAM_READ_TIMEOUT = 8000
 
@@ -493,7 +493,7 @@ async def respond_with_llm_message(update):
         
         # Initialize the Gemini model
         debug("Initializing Gemini model: gemini-2.5-flash")
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel(GEMINI_MODEL)
         
         # Generate response using Gemini
         debug("Sending request to Gemini API")
