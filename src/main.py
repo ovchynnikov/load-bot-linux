@@ -510,35 +510,67 @@ async def respond_with_llm_message(update):
         debug("Initializing Gemini model: gemini-2.5-flash")
         model = genai.GenerativeModel(GEMINI_MODEL)
 
-        # Generate response using Gemini
+        # Try different approach - rephrase any potentially problematic prompts
+        debug("Original prompt: %s", prompt)
+        safe_prompt = f"Відповідай українською мовою як дружній асистент. Питання користувача: {prompt}"
+        debug("Modified safe prompt: %s", safe_prompt)
+
+        # Generate response using Gemini with both safety settings and safe prompting
         debug("Sending request to Gemini API")
+        safety_settings = {
+            genai.types.HarmCategory.HARM_CATEGORY_HARASSMENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
+            genai.types.HarmCategory.HARM_CATEGORY_HATE_SPEECH: genai.types.HarmBlockThreshold.BLOCK_NONE,
+            genai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: genai.types.HarmBlockThreshold.BLOCK_NONE,
+            genai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
+        }
+
         response = await asyncio.to_thread(
             model.generate_content,
-            prompt,
+            safe_prompt,
             generation_config=genai.types.GenerationConfig(
-                temperature=0.8,
-                top_p=0.95,
-                top_k=40,
+                temperature=0.7,
+                top_p=0.9,
+                top_k=30,
                 max_output_tokens=1024,
             ),
+            safety_settings=safety_settings,
         )
         # debug("Successfully received response from Gemini API")
 
         # Handle response with safety filter checks
         if hasattr(response, 'candidates') and response.candidates:
             candidate = response.candidates[0]
+            debug("Response candidate finish_reason: %s", getattr(candidate, 'finish_reason', 'None'))
+            debug("Response candidate safety_ratings: %s", getattr(candidate, 'safety_ratings', 'None'))
+
             if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
-                debug("Safety filter triggered - finish_reason: 2, original prompt: %s", prompt)
-                bot_response = (
-                    "Вибачте, я не можу відповісти на це питання через обмеження безпеки."
-                    if language == "uk"
-                    else "Sorry, I can't respond to that topic due to safety guidelines."
-                )
+                debug("Safety filter triggered - finish_reason: 2, trying simpler approach")
+                # Try a much simpler, generic response for blocked content
+                try:
+                    simple_response = await asyncio.to_thread(
+                        model.generate_content,
+                        "Відповідь українською мовою: дай загальну інформацію про: " + prompt,
+                        safety_settings=safety_settings,
+                    )
+                    if simple_response.text:
+                        bot_response = f"Можу розповісти загалом: {simple_response.text.strip()}"
+                    else:
+                        bot_response = (
+                            "Вибачте, не можу надати детальну відповідь на це питання."
+                            if language == "uk"
+                            else "Sorry, I can't provide a detailed answer to this question."
+                        )
+                except:  # --- IGNORE --- # pylint: disable=bare-except
+                    bot_response = (
+                        "Вибачте, не можу надати детальну відповідь на це питання."
+                        if language == "uk"
+                        else "Sorry, I can't provide a detailed answer to this question."
+                    )
             elif response.text:
                 # Remove Markdown formatting from response
                 bot_response = response.text.strip()
                 # Remove common Markdown syntax
-                bot_response = bot_response.replace('**', '')  # Bold text
+                bot_response = re.sub(r'\*+', '', bot_response)  # Bold text
                 bot_response = bot_response.replace('*', '')  # Italic text
                 bot_response = bot_response.replace('`', '')  # Code blocks
                 bot_response = bot_response.replace('#', '')  # Headers
