@@ -511,10 +511,7 @@ async def respond_with_llm_message(update):
         debug("Initializing Gemini model: gemini-2.5-flash")
         plain_text_instruction = "Provide the entire response exclusively as plain text. Do not use any Markdown formatting (no **bold**, *italics*, # headers, or lists). The response must be text only."
 
-        model = genai.GenerativeModel(
-            GEMINI_MODEL,
-            system_instruction=plain_text_instruction
-        )
+        model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=plain_text_instruction)
 
         # Try different approach - rephrase any potentially problematic prompts
         debug("Original prompt: %s", prompt)
@@ -529,12 +526,7 @@ async def respond_with_llm_message(update):
             genai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: genai.types.HarmBlockThreshold.BLOCK_NONE,
             genai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
         }
-        contents = [
-            {
-                'role': 'user',
-                'parts': [safe_prompt]
-            }
-        ]
+        contents = [{'role': 'user', 'parts': [safe_prompt]}]
         response = await asyncio.to_thread(
             model.generate_content,
             contents,  # Pass the simplified list here
