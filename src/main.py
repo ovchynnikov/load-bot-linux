@@ -560,7 +560,7 @@ async def respond_with_llm_message(update):
                             if language == "uk"
                             else "Sorry, I can't provide a detailed answer to this question."
                         )
-                except (genai.types.GoogleGenerativeAIError, ValueError, RuntimeError) as e:
+                except: # --- IGNORE --- # pylint: disable=bare-except
                     bot_response = (
                         "Вибачте, не можу надати детальну відповідь на це питання."
                         if language == "uk"
