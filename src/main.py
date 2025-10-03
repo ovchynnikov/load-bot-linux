@@ -5,7 +5,7 @@ import random
 import json
 import asyncio
 import re
-import google.generativeai as genai 
+import google.generativeai as genai
 from google.generativeai import types
 from functools import lru_cache
 from dotenv import load_dotenv
