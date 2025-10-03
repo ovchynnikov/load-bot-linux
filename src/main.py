@@ -508,7 +508,7 @@ async def respond_with_llm_message(update):
 
         # Initialize the Gemini model
         debug("Initializing Gemini model: gemini-2.5-flash")
-        plain_text_instruction = "Provide the entire response exclusively as plain text. Do not use any Markdown formatting (no **bold**, *italics*, # headers, or lists). The response must be text only."
+        plain_text_instruction = "Provide the entire response exclusively as plain text. Do not use any Markdown formatting (no **bold**, *italics*, # headers, or lists). The response must be text only. Provide concise, short answers. Aim for 1-3 sentences."
 
         model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=plain_text_instruction)
 
