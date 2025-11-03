@@ -2,5 +2,5 @@ python-telegram-bot[ext]==22.5
 python-dotenv==1.1.1
 yt-dlp==2025.9.26
 gallery-dl==1.30.8
-aiohttp==3.12.15
+aiohttp==3.13.2
 google-generativeai>=0.8.0
