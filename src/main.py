@@ -106,9 +106,14 @@ def is_bot_mentioned(message_text: str) -> bool:
         bool: True if the bot is mentioned, False otherwise.
     """
     bot_trigger_words = ["ботяра", "bot_health"]
-    # Remove all non-letter characters
-    cleaned_text = ''.join(char for char in message_text.lower() if char.isalpha() or char.isspace())
-    return any(word in cleaned_text for word in bot_trigger_words)
+    # Remove leading/trailing whitespace and convert to lowercase
+    cleaned_text = message_text.strip().lower()
+    for word in bot_trigger_words:
+        if cleaned_text.startswith(word):
+            # Check if it's followed by space, punctuation, or is the whole message
+            if len(cleaned_text) == len(word) or not cleaned_text[len(word)].isalpha():
+                return True
+    return False
 
 
 def clean_url(message_text: str) -> str:
