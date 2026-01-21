@@ -1,5 +1,5 @@
 python-telegram-bot[ext]==22.5
-python-dotenv==1.1.1
+python-dotenv==1.2.1
 yt-dlp==2025.9.26
 gallery-dl==1.30.8
 aiohttp==3.12.15
