@@ -182,6 +182,31 @@ def get_video_duration(video_path):
         return None
 
 
+def get_video_dimensions(video_path):
+    """
+    Gets video width and height.
+    """
+    command = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height",
+        "-of",
+        "csv=p=0",
+        video_path,
+    ]
+    try:
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        width, height = result.stdout.strip().split(',')
+        return int(width), int(height)
+    except (subprocess.CalledProcessError, ValueError) as e:
+        error("Error getting video dimensions: %s", e)
+        return None, None
+
+
 def download_instagram_media(url, temp_dir):
     """
     Downloads Instagram media using gallery-dl.
@@ -267,6 +292,7 @@ def download_media(url):
     command = [
         "yt-dlp",  # Assuming yt-dlp is installed and in the PATH
         *(["--cookies", "instagram_cookies.txt"] if instagram_cookies else []),
+        "--no-progress",
         "-S",
         "vcodec:h264,fps,res,acodec:m4a",
         url,
