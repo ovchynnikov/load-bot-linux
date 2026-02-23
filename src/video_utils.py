@@ -186,6 +186,33 @@ def get_video_duration(video_path):
         return None
 
 
+def fix_video_aspect_ratio(video_path):
+    """
+    Fix video aspect ratio by setting SAR to 1:1.
+    """
+    temp_output = tempfile.mktemp(suffix=".mp4")
+    command = [
+        "ffmpeg",
+        "-i",
+        video_path,
+        "-vf",
+        "setsar=1",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "copy",
+        "-y",
+        temp_output,
+    ]
+    try:
+        subprocess.run(command, check=True)
+        if os.path.exists(temp_output):
+            os.replace(temp_output, video_path)
+            debug("Fixed aspect ratio for video: %s", video_path)
+    except subprocess.CalledProcessError as e:
+        error("Error fixing aspect ratio: %s", e)
+
+
 def download_instagram_media(url, temp_dir):
     """
     Downloads Instagram media using gallery-dl.
