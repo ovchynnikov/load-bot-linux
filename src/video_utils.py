@@ -296,6 +296,7 @@ def download_media(url):
     command = [
         "yt-dlp",  # Assuming yt-dlp is installed and in the PATH
         *(["--cookies", "instagram_cookies.txt"] if instagram_cookies else []),
+        "--no-progress",
         "-S",
         "vcodec:h264,fps,res,acodec:m4a",
         url,
