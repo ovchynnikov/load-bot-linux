@@ -20,6 +20,7 @@ from video_utils import (
     compress_video,
     download_media,
     fix_video_aspect_ratio,
+    get_video_dimensions,
     is_video_duration_over_limits,
     is_video_too_long_to_download,
 )
@@ -362,11 +363,13 @@ async def send_video(update: Update, video, has_spoiler: bool) -> None:
     """
     # Send the single video
     if isinstance(video, str):
-
+        width, height = get_video_dimensions(video)
         try:
             with open(video, 'rb') as video_file:
                 await update.message.chat.send_video(
                     video=video_file,
+                    width=width,
+                    height=height,
                     has_spoiler=has_spoiler,
                     disable_notification=True,
                     write_timeout=TELEGRAM_WRITE_TIMEOUT,
@@ -390,7 +393,8 @@ async def send_video(update: Update, video, has_spoiler: bool) -> None:
         for video_file in video:
             file = open(video_file, 'rb')
             opened_files.append(file)
-            media_group.append(InputMediaVideo(file))
+            width, height = get_video_dimensions(video_file)
+            media_group.append(InputMediaVideo(file, width=width, height=height))
         debug("Sending a group with number of videos: %s", len(media_group))
         try:
             await update.message.chat.send_media_group(

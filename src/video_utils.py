@@ -186,6 +186,31 @@ def get_video_duration(video_path):
         return None
 
 
+def get_video_dimensions(video_path):
+    """
+    Gets video width and height.
+    """
+    command = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height",
+        "-of",
+        "csv=p=0",
+        video_path,
+    ]
+    try:
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        width, height = result.stdout.strip().split(',')
+        return int(width), int(height)
+    except (subprocess.CalledProcessError, ValueError) as e:
+        error("Error getting video dimensions: %s", e)
+        return None, None
+
+
 def fix_video_aspect_ratio(video_path):
     """
     Fix video aspect ratio by setting SAR to 1:1 and re-encoding.
