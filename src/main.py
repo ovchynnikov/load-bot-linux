@@ -564,7 +564,7 @@ async def respond_with_llm_message(update):
                         safety_settings=safety_settings,
                     )
                     if simple_response.text:
-                        bot_response = f"Можу розповісти загалом: {simple_response.text.strip()}"
+                        bot_response = f"Ось загальна інформація: {simple_response.text.strip()}"
                     else:
                         bot_response = (
                             "Вибачте, не можу надати детальну відповідь на це питання."
