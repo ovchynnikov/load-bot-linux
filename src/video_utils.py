@@ -132,9 +132,9 @@ def compress_video(input_path):
         "35",
         # *(["-b:v", f"{target_bitrate_kbps}k"] if h_codes == LIBX264 else []),
         *(
-            ["-vf", "format=nv12,hwupload,scale_vaapi=iw:720,setsar=1"]
+            ["-vf", "format=nv12,hwupload,scale_vaapi=iw:720"]
             if use_gpu_compressing
-            else ["-vf", "scale=-2:720,setsar=1"]
+            else ["-vf", "scale=-2:720"]
         ),
         *(
             ["-c:v", "h264_vaapi"]
@@ -209,39 +209,6 @@ def get_video_dimensions(video_path):
     except (subprocess.CalledProcessError, ValueError) as e:
         error("Error getting video dimensions: %s", e)
         return None, None
-
-
-def fix_video_aspect_ratio(video_path):
-    """
-    Fix video aspect ratio by setting SAR to 1:1 and re-encoding.
-    """
-    temp_output = tempfile.mktemp(suffix=".mp4")
-    command = [
-        "ffmpeg",
-        "-i",
-        video_path,
-        "-vf",
-        "setsar=1",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "fast",
-        "-crf",
-        "23",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "128k",
-        "-y",
-        temp_output,
-    ]
-    try:
-        subprocess.run(command, check=True)
-        if os.path.exists(temp_output):
-            os.replace(temp_output, video_path)
-            debug("Fixed aspect ratio for video: %s", video_path)
-    except subprocess.CalledProcessError as e:
-        error("Error fixing aspect ratio: %s", e)
 
 
 def download_instagram_media(url, temp_dir):

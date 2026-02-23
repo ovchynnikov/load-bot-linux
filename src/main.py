@@ -19,7 +19,6 @@ from cleanup import cleanup
 from video_utils import (
     compress_video,
     download_media,
-    fix_video_aspect_ratio,
     get_video_dimensions,
     is_video_duration_over_limits,
     is_video_too_long_to_download,
@@ -282,9 +281,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
                             reply_to_message_id=update.message.message_id,
                         )
                         continue  # Stop further execution for this video
-                else:
-                    # Fix aspect ratio for videos that don't need compression
-                    fix_video_aspect_ratio(pathobj)
                 video_path.append(pathobj)
 
             elif pathobj.endswith((".jpg", ".jpeg", ".png")):
