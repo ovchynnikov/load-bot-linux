@@ -188,7 +188,7 @@ def get_video_duration(video_path):
 
 def fix_video_aspect_ratio(video_path):
     """
-    Fix video aspect ratio by setting SAR to 1:1.
+    Fix video aspect ratio by setting SAR to 1:1 and re-encoding.
     """
     temp_output = tempfile.mktemp(suffix=".mp4")
     command = [
@@ -198,9 +198,15 @@ def fix_video_aspect_ratio(video_path):
         "-vf",
         "setsar=1",
         "-c:v",
-        "copy",
+        "libx264",
+        "-preset",
+        "fast",
+        "-crf",
+        "23",
         "-c:a",
-        "copy",
+        "aac",
+        "-b:a",
+        "128k",
         "-y",
         temp_output,
     ]
