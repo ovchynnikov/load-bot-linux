@@ -502,10 +502,20 @@ async def respond_with_llm_message(update):
 
     # Check if API is configured
     if LLM_PROVIDER == "grok" and not GROK_API_KEY:
-        await update.message.reply_text("Sorry, Grok AI service is not configured.")
+        bot_response = (
+            "Вибачте, Grok AI сервіс не налаштовано."
+            if language == "uk"
+            else "Sorry, Grok AI service is not configured."
+        )
+        await update.message.reply_text(bot_response)
         return
     elif LLM_PROVIDER == "gemini" and not GEMINI_API_KEY:
-        await update.message.reply_text("Sorry, Gemini AI service is not configured.")
+        bot_response = (
+            "Вибачте, Gemini AI сервіс не налаштовано."
+            if language == "uk"
+            else "Sorry, Gemini AI service is not configured."
+        )
+        await update.message.reply_text(bot_response)
         return
 
     # Rate limiting check
