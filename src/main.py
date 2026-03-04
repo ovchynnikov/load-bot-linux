@@ -6,6 +6,8 @@ import json
 import asyncio
 import re
 import time
+import traceback
+from datetime import datetime
 import google.generativeai as genai
 from openai import AsyncOpenAI
 from functools import lru_cache
@@ -58,7 +60,7 @@ if GROK_API_KEY:
 
 # Rate limiting for LLM APIs
 llm_rate_limit = defaultdict(list)  # {user_id: [timestamp1, timestamp2, ...]}
-llm_daily_limit = defaultdict(int)  # {user_id: count}
+llm_daily_limit = defaultdict(lambda: {"count": 0, "date": ""})  # {user_id: {count, date}}
 LLM_RPM_LIMIT = int(os.getenv("LLM_RPM_LIMIT", "50"))  # Requests per minute per user
 LLM_RPD_LIMIT = int(os.getenv("LLM_RPD_LIMIT", "500"))  # Requests per day per user
 
@@ -66,6 +68,9 @@ LLM_RPD_LIMIT = int(os.getenv("LLM_RPD_LIMIT", "500"))  # Requests per day per u
 conversation_context = defaultdict(list)
 MAX_CONTEXT_MESSAGES = int(os.getenv("MAX_CONTEXT_MESSAGES", "3"))  # Keep last N exchanges
 MAX_CONTEXT_CHARS = int(os.getenv("MAX_CONTEXT_CHARS", "500"))  # Max chars per message in context
+
+# Allowed LLM providers
+ALLOWED_PROVIDERS = {"grok", "gemini"}
 
 
 # Cache responses from JSON file
@@ -501,6 +506,16 @@ async def respond_with_llm_message(update):
     debug("Original message: %s", message_text)
     debug("Processed prompt: %s", prompt)
 
+    # Validate LLM provider
+    if LLM_PROVIDER not in ALLOWED_PROVIDERS:
+        bot_response = (
+            f"Вибачте, провайдер '{LLM_PROVIDER}' не підтримується. Доступні: {', '.join(ALLOWED_PROVIDERS)}"
+            if language == "uk"
+            else f"Sorry, provider '{LLM_PROVIDER}' is not supported. Available: {', '.join(ALLOWED_PROVIDERS)}"
+        )
+        await update.message.reply_text(bot_response)
+        return
+
     # Check if API is configured
     if LLM_PROVIDER == "grok" and not GROK_API_KEY:
         bot_response = (
@@ -536,7 +551,11 @@ async def respond_with_llm_message(update):
         return
 
     # Check daily limit
-    if llm_daily_limit[user_id] >= LLM_RPD_LIMIT:
+    today = datetime.now().strftime("%Y-%m-%d")
+    if llm_daily_limit[user_id]["date"] != today:
+        llm_daily_limit[user_id] = {"count": 0, "date": today}
+
+    if llm_daily_limit[user_id]["count"] >= LLM_RPD_LIMIT:
         debug("Daily limit hit for user %s", user_id)
         bot_response = (
             "Вибачте, денний ліміт запитів вичерпано. Спробуйте завтра."
@@ -546,9 +565,8 @@ async def respond_with_llm_message(update):
         await update.message.reply_text(bot_response)
         return
 
-    # Add current request timestamp
+    # Tentatively add current request timestamp (will be removed on failure)
     llm_rate_limit[user_id].append(current_time)
-    llm_daily_limit[user_id] += 1
 
     try:
         # Check if user is asking for image generation and modify prompt
@@ -580,6 +598,8 @@ async def respond_with_llm_message(update):
                 bot_response = "Sorry, I can't generate images, but I can describe in detail what you're asking for! For example, I can tell you about a car: its color, shape, design features, etc. What specifically interests you?"
 
             await update.message.reply_text(bot_response)
+            # Remove tentative timestamp since no API call was made
+            llm_rate_limit[user_id].pop()
             return
 
         # Prepare prompt with context
@@ -611,6 +631,9 @@ async def respond_with_llm_message(update):
             debug("Using Gemini API with model: %s", GEMINI_MODEL)
             bot_response = await call_gemini_api(safe_prompt, prompt, update)
 
+        # Increment daily limit only after successful API call
+        llm_daily_limit[user_id]["count"] += 1
+
         # Store conversation in context if enabled
         if USE_CONVERSATION_CONTEXT:
             truncated_prompt = prompt[:MAX_CONTEXT_CHARS]
@@ -623,7 +646,9 @@ async def respond_with_llm_message(update):
         await update.message.reply_text(bot_response)
 
     except Exception as e:  # pylint: disable=broad-except
-        import traceback
+        # Remove tentative timestamp on failure
+        if llm_rate_limit[user_id] and llm_rate_limit[user_id][-1] == current_time:
+            llm_rate_limit[user_id].pop()
 
         error_msg = str(e)
         error("Error in LLM API request: %s (Type: %s)", error_msg, type(e).__name__)
@@ -762,7 +787,8 @@ async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
                             if language == "uk"
                             else "Sorry, I can't provide a detailed answer to this question."
                         )
-                except:  # --- IGNORE --- # pylint: disable=bare-except
+                except Exception:  # pylint: disable=broad-exception-caught
+                    error("Fallback response generation failed")
                     return (
                         "Вибачте, не можу надати детальну відповідь на це питання."
                         if language == "uk"
