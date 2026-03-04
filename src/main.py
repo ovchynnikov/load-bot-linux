@@ -882,7 +882,7 @@ def main():
     application.add_error_handler(error_handler)
 
     # Start cleanup task after event loop is running
-    async def post_init(app):
+    async def post_init(app):  # pylint: disable=unused-argument
         asyncio.create_task(cleanup_stale_users())
 
     application.post_init = post_init

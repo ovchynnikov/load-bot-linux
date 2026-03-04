@@ -3,7 +3,7 @@
 import sqlite3
 import json
 import os
-from logger import debug, error
+from logger import debug
 
 
 class BotStorage:
