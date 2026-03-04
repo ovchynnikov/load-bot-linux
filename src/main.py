@@ -69,6 +69,11 @@ conversation_context = defaultdict(list)
 MAX_CONTEXT_MESSAGES = int(os.getenv("MAX_CONTEXT_MESSAGES", "3"))  # Keep last N exchanges
 MAX_CONTEXT_CHARS = int(os.getenv("MAX_CONTEXT_CHARS", "500"))  # Max chars per message in context
 
+# User activity tracking for cleanup
+user_last_seen = defaultdict(float)  # {user_id: timestamp}
+USER_CLEANUP_TTL_DAYS = int(os.getenv("USER_CLEANUP_TTL_DAYS", "3"))  # Days before user data expires
+USER_CLEANUP_INTERVAL_HOURS = int(os.getenv("USER_CLEANUP_INTERVAL_HOURS", "24"))  # Cleanup interval
+
 # Allowed LLM providers
 ALLOWED_PROVIDERS = {"grok", "gemini"}
 
@@ -537,6 +542,10 @@ async def respond_with_llm_message(update):
     # Rate limiting check
     user_id = update.effective_user.id
     current_time = time.time()
+    
+    # Update last seen timestamp
+    user_last_seen[user_id] = current_time
+    
     # Clean old timestamps (older than 60 seconds)
     llm_rate_limit[user_id] = [t for t in llm_rate_limit[user_id] if current_time - t < 60]
 
@@ -606,7 +615,6 @@ async def respond_with_llm_message(update):
         debug("Original prompt: %s", prompt)
 
         # Build context from previous messages if enabled
-        user_id = update.effective_user.id
         if USE_CONVERSATION_CONTEXT:
             context_messages = (
                 conversation_context[user_id][-MAX_CONTEXT_MESSAGES:] if conversation_context[user_id] else []
@@ -673,151 +681,147 @@ async def respond_with_llm_message(update):
 
 
 async def call_grok_api(safe_prompt: str, update) -> str:
-    """Call Grok API and return response."""
-    try:
-        max_retries = 2
-        retry_delay = 60
+    """Call Grok API and return response. Raises exception on failure."""
+    plain_text_instruction = "Provide the entire response exclusively as plain text. Do not use any Markdown formatting (no **bold**, *italics*, # headers, or lists). The response must be text only. Provide concise, short answers. Aim for 1-3 sentences."
+    max_retries = 2
+    retry_delay = 60
 
-        for attempt in range(max_retries):
-            try:
-                response = await grok_client.chat.completions.create(
-                    model=GROK_MODEL,
-                    messages=[{"role": "user", "content": safe_prompt}],
-                    max_tokens=1024,
-                    temperature=0.7,
+    for attempt in range(max_retries):
+        try:
+            response = await grok_client.chat.completions.create(
+                model=GROK_MODEL,
+                messages=[
+                    {"role": "system", "content": plain_text_instruction},
+                    {"role": "user", "content": safe_prompt},
+                ],
+                max_tokens=1024,
+                temperature=0.7,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as retry_error:  # pylint: disable=broad-exception-caught
+            error_msg = str(retry_error)
+            if (
+                "429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower()
+            ) and attempt < max_retries - 1:
+                debug(
+                    "Rate limit hit, waiting %s seconds before retry (attempt %s/%s)",
+                    retry_delay,
+                    attempt + 1,
+                    max_retries,
                 )
-                return response.choices[0].message.content.strip()
-            except Exception as retry_error:  # pylint: disable=broad-exception-caught
-                error_msg = str(retry_error)
-                if (
-                    "429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower()
-                ) and attempt < max_retries - 1:
-                    debug(
-                        "Rate limit hit, waiting %s seconds before retry (attempt %s/%s)",
-                        retry_delay,
-                        attempt + 1,
-                        max_retries,
-                    )
-                    wait_msg = (
-                        f"Перевищено ліміт запитів. Зачекайте {retry_delay} секунд, я спробую ще раз..."
-                        if language == "uk"
-                        else f"Rate limit exceeded. Waiting {retry_delay} seconds before retrying..."
-                    )
-                    await update.message.reply_text(wait_msg)
-                    await asyncio.sleep(retry_delay)
-                else:
-                    raise
-    except Exception:  # pylint: disable=broad-exception-caught
-        return (
-            "Вибачте, я не можу згенерувати відповідь."
-            if language == "uk"
-            else "Sorry, I couldn't generate a response."
-        )
+                wait_msg = (
+                    f"Перевищено ліміт запитів. Зачекайте {retry_delay} секунд, я спробую ще раз..."
+                    if language == "uk"
+                    else f"Rate limit exceeded. Waiting {retry_delay} seconds before retrying..."
+                )
+                await update.message.reply_text(wait_msg)
+                await asyncio.sleep(retry_delay)
+            else:
+                raise
 
 
 async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
-    """Call Gemini API and return response."""
-    try:
-        plain_text_instruction = "Provide the entire response exclusively as plain text. Do not use any Markdown formatting (no **bold**, *italics*, # headers, or lists). The response must be text only. Provide concise, short answers. Aim for 1-3 sentences."
-        model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=plain_text_instruction)
-        safety_settings = {
-            genai.types.HarmCategory.HARM_CATEGORY_HARASSMENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
-            genai.types.HarmCategory.HARM_CATEGORY_HATE_SPEECH: genai.types.HarmBlockThreshold.BLOCK_NONE,
-            genai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: genai.types.HarmBlockThreshold.BLOCK_NONE,
-            genai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
-        }
-        contents = [{'role': 'user', 'parts': [safe_prompt]}]
+    """Call Gemini API and return response. Raises exception on failure."""
+    plain_text_instruction = "Provide the entire response exclusively as plain text. Do not use any Markdown formatting (no **bold**, *italics*, # headers, or lists). The response must be text only. Provide concise, short answers. Aim for 1-3 sentences."
+    model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=plain_text_instruction)
+    safety_settings = {
+        genai.types.HarmCategory.HARM_CATEGORY_HARASSMENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
+        genai.types.HarmCategory.HARM_CATEGORY_HATE_SPEECH: genai.types.HarmBlockThreshold.BLOCK_NONE,
+        genai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: genai.types.HarmBlockThreshold.BLOCK_NONE,
+        genai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
+    }
+    contents = [{'role': 'user', 'parts': [safe_prompt]}]
 
-        max_retries = 2
-        retry_delay = 60
+    max_retries = 2
+    retry_delay = 60
 
-        for attempt in range(max_retries):
-            try:
-                response = await asyncio.to_thread(
-                    model.generate_content,
-                    contents,
-                    generation_config=genai.types.GenerationConfig(
-                        temperature=0.7,
-                        top_p=0.9,
-                        top_k=30,
-                        max_output_tokens=1024,
-                    ),
-                    safety_settings=safety_settings,
-                )
-                debug("Successfully received response from Gemini API")
-                break
-            except Exception as retry_error:  # pylint: disable=broad-exception-caught
-                error_msg = str(retry_error)
-                if (
-                    "429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower()
-                ) and attempt < max_retries - 1:
-                    debug(
-                        "Rate limit hit, waiting %s seconds before retry (attempt %s/%s)",
-                        retry_delay,
-                        attempt + 1,
-                        max_retries,
-                    )
-                    wait_msg = (
-                        f"Перевищено ліміт запитів. Зачекайте {retry_delay} секунд, я спробую ще раз..."
-                        if language == "uk"
-                        else f"Rate limit exceeded. Waiting {retry_delay} seconds before retrying..."
-                    )
-                    await update.message.reply_text(wait_msg)
-                    await asyncio.sleep(retry_delay)
-                else:
-                    raise
-        if hasattr(response, 'candidates') and response.candidates:
-            candidate = response.candidates[0]
-            debug("Response candidate finish_reason: %s", getattr(candidate, 'finish_reason', 'None'))
-            debug("Response candidate safety_ratings: %s", getattr(candidate, 'safety_ratings', 'None'))
-
-            if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
-                debug("Safety filter triggered - finish_reason: 2, trying simpler approach")
-                try:
-                    simple_response = await asyncio.to_thread(
-                        model.generate_content,
-                        "Відповідь українською мовою: дай загальну інформацію про: " + prompt,
-                        safety_settings=safety_settings,
-                    )
-                    if simple_response.text:
-                        return f"Ось загальна інформація: {simple_response.text.strip()}"
-                    else:
-                        return (
-                            "Вибачте, не можу надати детальну відповідь на це питання."
-                            if language == "uk"
-                            else "Sorry, I can't provide a detailed answer to this question."
-                        )
-                except Exception:  # pylint: disable=broad-exception-caught
-                    error("Fallback response generation failed")
-                    return (
-                        "Вибачте, не можу надати детальну відповідь на це питання."
-                        if language == "uk"
-                        else "Sorry, I can't provide a detailed answer to this question."
-                    )
-            elif response.text:
-                # Remove Markdown formatting
-                bot_response = response.text.strip()
-                bot_response = re.sub(r'\*+', '', bot_response)
-                bot_response = bot_response.replace('*', '').replace('`', '').replace('#', '')
-                return bot_response
-            else:
-                return (
-                    "Вибачте, я не можу згенерувати відповідь."
-                    if language == "uk"
-                    else "Sorry, I couldn't generate a response."
-                )
-        else:
-            return (
-                "Вибачте, я не можу згенерувати відповідь."
-                if language == "uk"
-                else "Sorry, I couldn't generate a response."
+    for attempt in range(max_retries):
+        try:
+            response = await asyncio.to_thread(
+                model.generate_content,
+                contents,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.7,
+                    top_p=0.9,
+                    top_k=30,
+                    max_output_tokens=1024,
+                ),
+                safety_settings=safety_settings,
             )
-    except Exception:  # pylint: disable=broad-exception-caught
-        return (
-            "Вибачте, я не можу згенерувати відповідь."
-            if language == "uk"
-            else "Sorry, I couldn't generate a response."
-        )
+            debug("Successfully received response from Gemini API")
+            break
+        except Exception as retry_error:  # pylint: disable=broad-exception-caught
+            error_msg = str(retry_error)
+            if (
+                "429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower()
+            ) and attempt < max_retries - 1:
+                debug(
+                    "Rate limit hit, waiting %s seconds before retry (attempt %s/%s)",
+                    retry_delay,
+                    attempt + 1,
+                    max_retries,
+                )
+                wait_msg = (
+                    f"Перевищено ліміт запитів. Зачекайте {retry_delay} секунд, я спробую ще раз..."
+                    if language == "uk"
+                    else f"Rate limit exceeded. Waiting {retry_delay} seconds before retrying..."
+                )
+                await update.message.reply_text(wait_msg)
+                await asyncio.sleep(retry_delay)
+            else:
+                raise
+    if hasattr(response, 'candidates') and response.candidates:
+        candidate = response.candidates[0]
+        debug("Response candidate finish_reason: %s", getattr(candidate, 'finish_reason', 'None'))
+        debug("Response candidate safety_ratings: %s", getattr(candidate, 'safety_ratings', 'None'))
+
+        if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
+            debug("Safety filter triggered - finish_reason: 2, trying simpler approach")
+            simple_response = await asyncio.to_thread(
+                model.generate_content,
+                "Відповідь українською мовою: дай загальну інформацію про: " + prompt,
+                safety_settings=safety_settings,
+            )
+            if simple_response.text:
+                return f"Ось загальна інформація: {simple_response.text.strip()}"
+            else:
+                raise Exception("Вибачте, не можу надати детальну відповідь на це питання.")
+        elif response.text:
+            # Remove Markdown formatting
+            bot_response = response.text.strip()
+            bot_response = re.sub(r'\*+', '', bot_response)
+            bot_response = bot_response.replace('*', '').replace('`', '').replace('#', '')
+            return bot_response
+        else:
+            raise Exception("Вибачте, я не можу згенерувати відповідь.")
+    else:
+        raise Exception("Вибачте, я не можу згенерувати відповідь.")
+
+
+async def cleanup_stale_users():
+    """Remove inactive users from memory to prevent unbounded growth."""
+    while True:
+        await asyncio.sleep(USER_CLEANUP_INTERVAL_HOURS * 3600)
+        current_time = time.time()
+        ttl_seconds = USER_CLEANUP_TTL_DAYS * 86400
+        
+        stale_users = [
+            user_id for user_id, last_seen in user_last_seen.items()
+            if current_time - last_seen > ttl_seconds
+        ]
+        
+        for user_id in stale_users:
+            if user_id in conversation_context:
+                del conversation_context[user_id]
+            if user_id in llm_rate_limit:
+                del llm_rate_limit[user_id]
+            if user_id in llm_daily_limit:
+                del llm_daily_limit[user_id]
+            if user_id in user_last_seen:
+                del user_last_seen[user_id]
+        
+        if stale_users:
+            info("Cleaned up %d inactive users (TTL: %d days)", len(stale_users), USER_CLEANUP_TTL_DAYS)
 
 
 def main():
@@ -851,6 +855,10 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     # This handler will receive every error which happens in your bot
     application.add_error_handler(error_handler)
+    
+    # Start cleanup task
+    asyncio.create_task(cleanup_stale_users())
+    
     info("Bot started. Ctrl+C to stop")
     application.run_polling()
 
