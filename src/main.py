@@ -785,7 +785,7 @@ async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
             if simple_response.text:
                 return f"Ось загальна інформація: {simple_response.text.strip()}"
             else:
-                raise Exception("Вибачте, не можу надати детальну відповідь на це питання.")
+                raise Exception("Вибачте, не можу надати детальну відповідь на це питання.")  # pylint: disable=broad-exception-raised
         elif response.text:
             # Remove Markdown formatting
             bot_response = response.text.strip()
@@ -793,9 +793,9 @@ async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
             bot_response = bot_response.replace('*', '').replace('`', '').replace('#', '')
             return bot_response
         else:
-            raise Exception("Вибачте, я не можу згенерувати відповідь.")
+            raise Exception("Вибачте, я не можу згенерувати відповідь.")  # pylint: disable=broad-exception-raised
     else:
-        raise Exception("Вибачте, я не можу згенерувати відповідь.")
+        raise Exception("Вибачте, я не можу згенерувати відповідь.")  # pylint: disable=broad-exception-raised
 
 
 async def cleanup_stale_users():
