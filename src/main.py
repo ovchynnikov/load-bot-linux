@@ -516,7 +516,7 @@ async def respond_with_llm_message(update):
             return
 
         # Initialize the Gemini model
-        debug("Initializing Gemini model: gemini-2.5-flash")
+        debug("Initializing Gemini model: %s", GEMINI_MODEL)
         plain_text_instruction = "Provide the entire response exclusively as plain text. Do not use any Markdown formatting (no **bold**, *italics*, # headers, or lists). The response must be text only. Provide concise, short answers. Aim for 1-3 sentences."
 
         model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=plain_text_instruction)
@@ -527,7 +527,7 @@ async def respond_with_llm_message(update):
         debug("Modified safe prompt: %s", safe_prompt)
 
         # Generate response using Gemini with both safety settings and safe prompting
-        debug("Sending request to Gemini API")
+        debug("Sending request to Gemini API with model: %s", GEMINI_MODEL)
         safety_settings = {
             genai.types.HarmCategory.HARM_CATEGORY_HARASSMENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
             genai.types.HarmCategory.HARM_CATEGORY_HATE_SPEECH: genai.types.HarmBlockThreshold.BLOCK_NONE,
@@ -546,7 +546,7 @@ async def respond_with_llm_message(update):
             ),
             safety_settings=safety_settings,
         )
-        # debug("Successfully received response from Gemini API")
+        debug("Successfully received response from Gemini API")
 
         # Handle response with safety filter checks
         if hasattr(response, 'candidates') and response.candidates:
@@ -600,20 +600,28 @@ async def respond_with_llm_message(update):
 
         await update.message.reply_text(bot_response)
 
-    except (ValueError, RuntimeError) as e:
-        error("Error in Gemini API request: %s", e)
-        await update.message.reply_text(
-            "Вибачте, я не можу згенерувати відповідь."
-            if language == "uk"
-            else "Sorry, I encountered an error while processing your request."
-        )
     except Exception as e:  # pylint: disable=broad-except
-        error("Unexpected error in Gemini API request: %s", e)
-        await update.message.reply_text(
-            "Вибачте, я не можу згенерувати відповідь."
-            if language == "uk"
-            else "Sorry, I encountered an unexpected error while processing your request."
-        )
+        import traceback
+        error_msg = str(e)
+        error("Error in Gemini API request: %s (Type: %s)", error_msg, type(e).__name__)
+        error("Full traceback: %s", traceback.format_exc())
+        
+        # Check for rate limit (429) error
+        if "429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower():
+            error("Rate limit exceeded (429) - Too many requests to Gemini API")
+            bot_response = (
+                "Вибачте, перевищено ліміт запитів до AI. Спробуйте пізніше."
+                if language == "uk"
+                else "Sorry, AI request limit exceeded. Please try again later."
+            )
+        else:
+            bot_response = (
+                "Вибачте, я не можу згенерувати відповідь."
+                if language == "uk"
+                else "Sorry, I encountered an error while processing your request."
+            )
+        
+        await update.message.reply_text(bot_response)
 
 
 def main():
