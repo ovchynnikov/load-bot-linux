@@ -65,6 +65,7 @@ LLM_RPD_LIMIT = int(os.getenv("LLM_RPD_LIMIT", "500"))  # Requests per day per u
 # Conversation context storage: {user_id: [(user_msg, bot_response), ...]}
 conversation_context = defaultdict(list)
 MAX_CONTEXT_MESSAGES = int(os.getenv("MAX_CONTEXT_MESSAGES", "3"))  # Keep last N exchanges
+MAX_CONTEXT_CHARS = int(os.getenv("MAX_CONTEXT_CHARS", "500"))  # Max chars per message in context
 
 
 # Cache responses from JSON file
@@ -612,7 +613,9 @@ async def respond_with_llm_message(update):
 
         # Store conversation in context if enabled
         if USE_CONVERSATION_CONTEXT:
-            conversation_context[user_id].append((prompt, bot_response))
+            truncated_prompt = prompt[:MAX_CONTEXT_CHARS]
+            truncated_response = bot_response[:MAX_CONTEXT_CHARS]
+            conversation_context[user_id].append((truncated_prompt, truncated_response))
             # Keep only last MAX_CONTEXT_MESSAGES
             if len(conversation_context[user_id]) > MAX_CONTEXT_MESSAGES:
                 conversation_context[user_id] = conversation_context[user_id][-MAX_CONTEXT_MESSAGES:]
