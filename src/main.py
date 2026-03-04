@@ -38,7 +38,7 @@ if language == "ua":
 # Reply with user data for Healthcheck
 send_user_info_with_healthcheck = os.getenv("SEND_USER_INFO_WITH_HEALTHCHECK", "False").lower() == "true"
 USE_LLM = os.getenv("USE_LLM", "False").lower() == "true"
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()  # gemini or grok
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "grok").lower()  # gemini or grok
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 GROK_API_KEY = os.getenv("GROK_API_KEY")
@@ -61,8 +61,8 @@ if GROK_API_KEY:
 # Rate limiting for LLM APIs
 llm_rate_limit = defaultdict(list)  # {user_id: [timestamp1, timestamp2, ...]}
 llm_daily_limit = defaultdict(int)  # {user_id: count}
-LLM_RPM_LIMIT = 50  # Set to 4 to be safe (limit is 5 for Gemini)
-LLM_RPD_LIMIT = 500  # Daily limit: 18 to be safe (limit is 20 for Gemini)
+LLM_RPM_LIMIT = int(os.getenv("LLM_RPM_LIMIT", "50"))  # Requests per minute per user
+LLM_RPD_LIMIT = int(os.getenv("LLM_RPD_LIMIT", "500"))  # Requests per day per user
 
 
 # Cache responses from JSON file
