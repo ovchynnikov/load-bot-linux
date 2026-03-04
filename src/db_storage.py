@@ -79,9 +79,7 @@ class BotStorage:
 
         current_time = time.time()
         cursor = self.conn.cursor()
-        cursor.execute(
-            "SELECT user_id FROM user_data WHERE last_seen < ?", (current_time - ttl_seconds,)
-        )
+        cursor.execute("SELECT user_id FROM user_data WHERE last_seen < ?", (current_time - ttl_seconds,))
         return [row[0] for row in cursor.fetchall()]
 
     def close(self):
