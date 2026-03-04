@@ -5,8 +5,10 @@ import random
 import json
 import asyncio
 import re
+import time
 import google.generativeai as genai
 from functools import lru_cache
+from collections import defaultdict
 from dotenv import load_dotenv
 from telegram import Update, InputMediaPhoto, InputMediaVideo
 from telegram.error import TimedOut, NetworkError, TelegramError
@@ -43,6 +45,10 @@ TELEGRAM_READ_TIMEOUT = 8000
 # Configure Gemini API
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+
+# Rate limiting for Gemini API (5 requests per minute)
+gemini_rate_limit = defaultdict(list)  # {user_id: [timestamp1, timestamp2, ...]}
+GEMINI_RPM_LIMIT = 4  # Set to 4 to be safe (limit is 5)
 
 
 # Cache responses from JSON file
@@ -482,6 +488,25 @@ async def respond_with_llm_message(update):
         # debug("GEMINI_API_KEY not configured")
         await update.message.reply_text("Sorry, AI service is not configured.")
         return
+
+    # Rate limiting check
+    user_id = update.effective_user.id
+    current_time = time.time()
+    # Clean old timestamps (older than 60 seconds)
+    gemini_rate_limit[user_id] = [t for t in gemini_rate_limit[user_id] if current_time - t < 60]
+
+    if len(gemini_rate_limit[user_id]) >= GEMINI_RPM_LIMIT:
+        debug("Rate limit hit for user %s", user_id)
+        bot_response = (
+            "Вибачте, забагато запитів. Почекайте хвилину."
+            if language == "uk"
+            else "Sorry, too many requests. Please wait a minute."
+        )
+        await update.message.reply_text(bot_response)
+        return
+
+    # Add current request timestamp
+    gemini_rate_limit[user_id].append(current_time)
 
     try:
         # Check if user is asking for image generation and modify prompt
