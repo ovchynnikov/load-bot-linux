@@ -38,6 +38,7 @@ if language == "ua":
 # Reply with user data for Healthcheck
 send_user_info_with_healthcheck = os.getenv("SEND_USER_INFO_WITH_HEALTHCHECK", "False").lower() == "true"
 USE_LLM = os.getenv("USE_LLM", "False").lower() == "true"
+USE_CONVERSATION_CONTEXT = os.getenv("USE_CONVERSATION_CONTEXT", "True").lower() == "true"
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "grok").lower()  # gemini or grok
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
@@ -60,6 +61,10 @@ llm_rate_limit = defaultdict(list)  # {user_id: [timestamp1, timestamp2, ...]}
 llm_daily_limit = defaultdict(int)  # {user_id: count}
 LLM_RPM_LIMIT = int(os.getenv("LLM_RPM_LIMIT", "50"))  # Requests per minute per user
 LLM_RPD_LIMIT = int(os.getenv("LLM_RPD_LIMIT", "500"))  # Requests per day per user
+
+# Conversation context storage: {user_id: [(user_msg, bot_response), ...]}
+conversation_context = defaultdict(list)
+MAX_CONTEXT_MESSAGES = int(os.getenv("MAX_CONTEXT_MESSAGES", "3"))  # Keep last N exchanges
 
 
 # Cache responses from JSON file
@@ -566,10 +571,26 @@ async def respond_with_llm_message(update):
             await update.message.reply_text(bot_response)
             return
 
-        # Prepare prompt
+        # Prepare prompt with context
         debug("Original prompt: %s", prompt)
-        safe_prompt = f"Відповідай українською мовою як дружній асистент. Питання користувача: {prompt}"
-        debug("Modified safe prompt: %s", safe_prompt)
+
+        # Build context from previous messages if enabled
+        user_id = update.effective_user.id
+        if USE_CONVERSATION_CONTEXT:
+            context_messages = (
+                conversation_context[user_id][-MAX_CONTEXT_MESSAGES:] if conversation_context[user_id] else []
+            )
+        else:
+            context_messages = []
+
+        # Create prompt with context if available
+        if context_messages:
+            context_str = "\n".join([f"Користувач: {msg}\nАсистент: {resp}" for msg, resp in context_messages])
+            safe_prompt = f"Попередня розмова:\n{context_str}\n\nПоточне питання користувача: {prompt}\n\nВідповідай українською мовою як дружній асистент."
+        else:
+            safe_prompt = f"Відповідай українською мовою як дружній асистент. Питання користувача: {prompt}"
+
+        debug("Modified safe prompt with context: %s", safe_prompt[:200])
 
         # Call appropriate LLM provider
         if LLM_PROVIDER == "grok":
@@ -578,6 +599,13 @@ async def respond_with_llm_message(update):
         else:
             debug("Using Gemini API with model: %s", GEMINI_MODEL)
             bot_response = await call_gemini_api(safe_prompt, prompt, update)
+
+        # Store conversation in context if enabled
+        if USE_CONVERSATION_CONTEXT:
+            conversation_context[user_id].append((prompt, bot_response))
+            # Keep only last MAX_CONTEXT_MESSAGES
+            if len(conversation_context[user_id]) > MAX_CONTEXT_MESSAGES:
+                conversation_context[user_id] = conversation_context[user_id][-MAX_CONTEXT_MESSAGES:]
 
         await update.message.reply_text(bot_response)
 
