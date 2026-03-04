@@ -542,10 +542,10 @@ async def respond_with_llm_message(update):
     # Rate limiting check
     user_id = update.effective_user.id
     current_time = time.time()
-    
+
     # Update last seen timestamp
     user_last_seen[user_id] = current_time
-    
+
     # Clean old timestamps (older than 60 seconds)
     llm_rate_limit[user_id] = [t for t in llm_rate_limit[user_id] if current_time - t < 60]
 
@@ -804,12 +804,11 @@ async def cleanup_stale_users():
         await asyncio.sleep(USER_CLEANUP_INTERVAL_HOURS * 3600)
         current_time = time.time()
         ttl_seconds = USER_CLEANUP_TTL_DAYS * 86400
-        
+
         stale_users = [
-            user_id for user_id, last_seen in user_last_seen.items()
-            if current_time - last_seen > ttl_seconds
+            user_id for user_id, last_seen in user_last_seen.items() if current_time - last_seen > ttl_seconds
         ]
-        
+
         for user_id in stale_users:
             if user_id in conversation_context:
                 del conversation_context[user_id]
@@ -819,7 +818,7 @@ async def cleanup_stale_users():
                 del llm_daily_limit[user_id]
             if user_id in user_last_seen:
                 del user_last_seen[user_id]
-        
+
         if stale_users:
             info("Cleaned up %d inactive users (TTL: %d days)", len(stale_users), USER_CLEANUP_TTL_DAYS)
 
@@ -855,10 +854,10 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     # This handler will receive every error which happens in your bot
     application.add_error_handler(error_handler)
-    
+
     # Start cleanup task
     asyncio.create_task(cleanup_stale_users())
-    
+
     info("Bot started. Ctrl+C to stop")
     application.run_polling()
 
