@@ -10,8 +10,13 @@ services:
     restart: unless-stopped
     volumes:
       - ./src:/app:cached  # Use bind mount for development
+      - bot-data:/bot/data  # Persistent storage for SQLite database
     deploy:
       resources:
         limits:
           cpus: '1'
           memory: 512M
+
+volumes:
+  bot-data:
+    driver: local

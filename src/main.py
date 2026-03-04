@@ -21,6 +21,7 @@ from logger import error, info, debug
 from general_error_handler import error_handler
 from permissions import inform_user_not_allowed, is_user_or_chat_not_allowed, supported_sites
 from cleanup import cleanup
+from db_storage import BotStorage
 from video_utils import (
     compress_video,
     download_media,
@@ -76,6 +77,9 @@ USER_CLEANUP_INTERVAL_HOURS = int(os.getenv("USER_CLEANUP_INTERVAL_HOURS", "24")
 
 # Allowed LLM providers
 ALLOWED_PROVIDERS = {"grok", "gemini"}
+
+# Initialize database storage
+db_storage = BotStorage()
 
 
 # Cache responses from JSON file
@@ -546,6 +550,15 @@ async def respond_with_llm_message(update):
     # Update last seen timestamp
     user_last_seen[user_id] = current_time
 
+    # Load user data from database on first access
+    if user_id not in llm_daily_limit:
+        user_data = db_storage.load_user_data(user_id)
+        if user_data:
+            conversation_context[user_id] = user_data["conversation_context"]
+            llm_rate_limit[user_id] = user_data["rate_limit_timestamps"]
+            llm_daily_limit[user_id] = {"count": user_data["daily_count"], "date": user_data["daily_date"]}
+            user_last_seen[user_id] = user_data["last_seen"]
+
     # Clean old timestamps (older than 60 seconds)
     llm_rate_limit[user_id] = [t for t in llm_rate_limit[user_id] if current_time - t < 60]
 
@@ -650,6 +663,16 @@ async def respond_with_llm_message(update):
             # Keep only last MAX_CONTEXT_MESSAGES
             if len(conversation_context[user_id]) > MAX_CONTEXT_MESSAGES:
                 conversation_context[user_id] = conversation_context[user_id][-MAX_CONTEXT_MESSAGES:]
+
+        # Save user data to database
+        db_storage.save_user_data(
+            user_id,
+            conversation_context[user_id],
+            llm_rate_limit[user_id],
+            llm_daily_limit[user_id]["count"],
+            llm_daily_limit[user_id]["date"],
+            user_last_seen[user_id],
+        )
 
         await update.message.reply_text(bot_response)
 
@@ -801,17 +824,16 @@ async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
 
 
 async def cleanup_stale_users():
-    """Remove inactive users from memory to prevent unbounded growth."""
+    """Remove inactive users from memory and database to prevent unbounded growth."""
     while True:
         await asyncio.sleep(USER_CLEANUP_INTERVAL_HOURS * 3600)
-        current_time = time.time()
         ttl_seconds = USER_CLEANUP_TTL_DAYS * 86400
 
-        stale_users = [
-            user_id for user_id, last_seen in user_last_seen.items() if current_time - last_seen > ttl_seconds
-        ]
+        # Get stale users from database
+        stale_users = db_storage.get_stale_users(ttl_seconds)
 
         for user_id in stale_users:
+            # Remove from memory
             if user_id in conversation_context:
                 del conversation_context[user_id]
             if user_id in llm_rate_limit:
@@ -820,6 +842,8 @@ async def cleanup_stale_users():
                 del llm_daily_limit[user_id]
             if user_id in user_last_seen:
                 del user_last_seen[user_id]
+            # Remove from database
+            db_storage.delete_user_data(user_id)
 
         if stale_users:
             info("Cleaned up %d inactive users (TTL: %d days)", len(stale_users), USER_CLEANUP_TTL_DAYS)

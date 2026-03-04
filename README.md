@@ -27,13 +27,21 @@ docker build . -t downloader-bot:latest
 ```
 docker run -d --name downloader-bot --restart always --env-file .env downloader-bot:latest
 ```
+To persist user data (conversation history, rate limits) between restarts, add a volume:
+```
+docker run -d --name downloader-bot --restart always --env-file .env -v bot-data:/bot/data downloader-bot:latest
+```
 or use a built image from **Docker hub**
 ```
 docker run -d --name downloader-bot --restart always --env-file .env ovchynnikov/load-bot-linux:latest
 ```
+With persistent data:
+```
+docker run -d --name downloader-bot --restart always --env-file .env -v bot-data:/bot/data ovchynnikov/load-bot-linux:latest
+```
 or if you use instagram cookies
 ```
-docker run -d --name downloader-bot --restart always --env-file .env -v /absolute/path/to/instagram_cookies.txt:/bot/instagram_cookies.txt ovchynnikov/load-bot-linux:latest
+docker run -d --name downloader-bot --restart always --env-file .env -v bot-data:/bot/data -v /absolute/path/to/instagram_cookies.txt:/bot/instagram_cookies.txt ovchynnikov/load-bot-linux:latest
 ```
 or if you want use GPU power of intel chip and set USE_GPU_COMPRESSING=True variable
 ```

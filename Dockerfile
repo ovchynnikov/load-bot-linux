@@ -19,6 +19,9 @@ COPY src /bot
 
 WORKDIR /bot
 
+# Create data directory for SQLite database
+RUN mkdir -p /bot/data
+
 # https://stackoverflow.com/questions/58701233/docker-logs-erroneously-appears-empty-until-container-stops
 ENV PYTHONUNBUFFERED=1
 
