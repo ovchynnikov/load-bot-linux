@@ -555,9 +555,13 @@ async def respond_with_llm_message(update):
         debug("Loading user data from database for user_id: %s", user_id)
         user_data = db_storage.load_user_data(user_id)
         if user_data:
-            debug("Found user data in database: context=%d messages, rate_limit=%d timestamps, daily=%d/%s",
-                  len(user_data["conversation_context"]), len(user_data["rate_limit_timestamps"]),
-                  user_data["daily_count"], user_data["daily_date"])
+            debug(
+                "Found user data in database: context=%d messages, rate_limit=%d timestamps, daily=%d/%s",
+                len(user_data["conversation_context"]),
+                len(user_data["rate_limit_timestamps"]),
+                user_data["daily_count"],
+                user_data["daily_date"],
+            )
             conversation_context[user_id] = user_data["conversation_context"]
             llm_rate_limit[user_id] = user_data["rate_limit_timestamps"]
             llm_daily_limit[user_id] = {"count": user_data["daily_count"], "date": user_data["daily_date"]}
@@ -671,9 +675,13 @@ async def respond_with_llm_message(update):
                 conversation_context[user_id] = conversation_context[user_id][-MAX_CONTEXT_MESSAGES:]
 
         # Save user data to database
-        debug("Saving user data to database: user_id=%s, context=%d messages, daily=%d/%s",
-              user_id, len(conversation_context[user_id]),
-              llm_daily_limit[user_id]["count"], llm_daily_limit[user_id]["date"])
+        debug(
+            "Saving user data to database: user_id=%s, context=%d messages, daily=%d/%s",
+            user_id,
+            len(conversation_context[user_id]),
+            llm_daily_limit[user_id]["count"],
+            llm_daily_limit[user_id]["date"],
+        )
         db_storage.save_user_data(
             user_id,
             conversation_context[user_id],
