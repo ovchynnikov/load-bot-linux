@@ -602,10 +602,11 @@ async def respond_with_llm_message(update):
 
     except Exception as e:  # pylint: disable=broad-except
         import traceback
+
         error_msg = str(e)
         error("Error in Gemini API request: %s (Type: %s)", error_msg, type(e).__name__)
         error("Full traceback: %s", traceback.format_exc())
-        
+
         # Check for rate limit (429) error
         if "429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower():
             error("Rate limit exceeded (429) - Too many requests to Gemini API")
@@ -620,7 +621,7 @@ async def respond_with_llm_message(update):
                 if language == "uk"
                 else "Sorry, I encountered an error while processing your request."
             )
-        
+
         await update.message.reply_text(bot_response)
 
 
