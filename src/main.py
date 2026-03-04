@@ -53,10 +53,7 @@ if GEMINI_API_KEY:
 # Configure Grok API
 grok_client = None
 if GROK_API_KEY:
-    grok_client = AsyncOpenAI(
-        api_key=GROK_API_KEY,
-        base_url="https://api.x.ai/v1"
-    )
+    grok_client = AsyncOpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
 
 # Rate limiting for LLM APIs
 llm_rate_limit = defaultdict(list)  # {user_id: [timestamp1, timestamp2, ...]}
@@ -521,7 +518,7 @@ async def respond_with_llm_message(update):
         )
         await update.message.reply_text(bot_response)
         return
-    
+
     # Check daily limit
     if llm_daily_limit[user_id] >= LLM_RPD_LIMIT:
         debug("Daily limit hit for user %s", user_id)
@@ -614,20 +611,27 @@ async def call_grok_api(safe_prompt: str, update) -> str:
     try:
         max_retries = 2
         retry_delay = 60
-        
+
         for attempt in range(max_retries):
             try:
                 response = await grok_client.chat.completions.create(
                     model=GROK_MODEL,
                     messages=[{"role": "user", "content": safe_prompt}],
                     max_tokens=1024,
-                    temperature=0.7
+                    temperature=0.7,
                 )
                 return response.choices[0].message.content.strip()
             except Exception as retry_error:
                 error_msg = str(retry_error)
-                if ("429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower()) and attempt < max_retries - 1:
-                    debug("Rate limit hit, waiting %s seconds before retry (attempt %s/%s)", retry_delay, attempt + 1, max_retries)
+                if (
+                    "429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower()
+                ) and attempt < max_retries - 1:
+                    debug(
+                        "Rate limit hit, waiting %s seconds before retry (attempt %s/%s)",
+                        retry_delay,
+                        attempt + 1,
+                        max_retries,
+                    )
                     wait_msg = (
                         f"Перевищено ліміт запитів. Зачекайте {retry_delay} секунд, я спробую ще раз..."
                         if language == "uk"
@@ -657,10 +661,10 @@ async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
             genai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
         }
         contents = [{'role': 'user', 'parts': [safe_prompt]}]
-        
+
         max_retries = 2
         retry_delay = 60
-        
+
         for attempt in range(max_retries):
             try:
                 response = await asyncio.to_thread(
@@ -678,8 +682,15 @@ async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
                 break
             except Exception as retry_error:
                 error_msg = str(retry_error)
-                if ("429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower()) and attempt < max_retries - 1:
-                    debug("Rate limit hit, waiting %s seconds before retry (attempt %s/%s)", retry_delay, attempt + 1, max_retries)
+                if (
+                    "429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower()
+                ) and attempt < max_retries - 1:
+                    debug(
+                        "Rate limit hit, waiting %s seconds before retry (attempt %s/%s)",
+                        retry_delay,
+                        attempt + 1,
+                        max_retries,
+                    )
                     wait_msg = (
                         f"Перевищено ліміт запитів. Зачекайте {retry_delay} секунд, я спробую ще раз..."
                         if language == "uk"
