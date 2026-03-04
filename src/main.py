@@ -621,7 +621,7 @@ async def call_grok_api(safe_prompt: str, update) -> str:
                     temperature=0.7,
                 )
                 return response.choices[0].message.content.strip()
-            except Exception as retry_error:
+            except Exception as retry_error:  # pylint: disable=broad-exception-caught
                 error_msg = str(retry_error)
                 if (
                     "429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower()
@@ -641,7 +641,7 @@ async def call_grok_api(safe_prompt: str, update) -> str:
                     await asyncio.sleep(retry_delay)
                 else:
                     raise
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         return (
             "Вибачте, я не можу згенерувати відповідь."
             if language == "uk"
@@ -680,7 +680,7 @@ async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
                 )
                 debug("Successfully received response from Gemini API")
                 break
-            except Exception as retry_error:
+            except Exception as retry_error:  # pylint: disable=broad-exception-caught
                 error_msg = str(retry_error)
                 if (
                     "429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower()
@@ -745,7 +745,7 @@ async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
                 if language == "uk"
                 else "Sorry, I couldn't generate a response."
             )
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         return (
             "Вибачте, я не можу згенерувати відповідь."
             if language == "uk"
