@@ -596,9 +596,9 @@ async def respond_with_llm_message(update):
         # Create prompt with context if available
         if context_messages:
             context_str = "\n".join([f"Користувач: {msg}\nАсистент: {resp}" for msg, resp in context_messages])
-            safe_prompt = f"Попередня розмова:\n{context_str}\n\nПоточне питання користувача: {prompt}\n\nВідповідай українською мовою як дружній асистент."
+            safe_prompt = f"Попередня розмова:\n{context_str}\n\nПоточне питання користувача: {prompt}\n\nВідповідай українською мовою як дружній асистент. Не вітайся і не прощайся."
         else:
-            safe_prompt = f"Відповідай українською мовою як дружній асистент. Питання користувача: {prompt}"
+            safe_prompt = f"Відповідай українською мовою як дружній асистент. Не вітайся і не прощайся. Питання користувача: {prompt}"
 
         debug("Modified safe prompt with context: %s", safe_prompt[:200])
 
