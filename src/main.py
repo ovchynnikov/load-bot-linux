@@ -7,6 +7,7 @@ import asyncio
 import re
 import time
 import google.generativeai as genai
+from openai import AsyncOpenAI
 from functools import lru_cache
 from collections import defaultdict
 from dotenv import load_dotenv
@@ -37,8 +38,11 @@ if language == "ua":
 # Reply with user data for Healthcheck
 send_user_info_with_healthcheck = os.getenv("SEND_USER_INFO_WITH_HEALTHCHECK", "False").lower() == "true"
 USE_LLM = os.getenv("USE_LLM", "False").lower() == "true"
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()  # gemini or grok
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+GROK_API_KEY = os.getenv("GROK_API_KEY")
+GROK_MODEL = os.getenv("GROK_MODEL", "grok-4-latest")
 TELEGRAM_WRITE_TIMEOUT = 8000
 TELEGRAM_READ_TIMEOUT = 8000
 
@@ -46,9 +50,19 @@ TELEGRAM_READ_TIMEOUT = 8000
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
-# Rate limiting for Gemini API (5 requests per minute)
-gemini_rate_limit = defaultdict(list)  # {user_id: [timestamp1, timestamp2, ...]}
-GEMINI_RPM_LIMIT = 4  # Set to 4 to be safe (limit is 5)
+# Configure Grok API
+grok_client = None
+if GROK_API_KEY:
+    grok_client = AsyncOpenAI(
+        api_key=GROK_API_KEY,
+        base_url="https://api.x.ai/v1"
+    )
+
+# Rate limiting for LLM APIs
+llm_rate_limit = defaultdict(list)  # {user_id: [timestamp1, timestamp2, ...]}
+llm_daily_limit = defaultdict(int)  # {user_id: count}
+LLM_RPM_LIMIT = 50  # Set to 4 to be safe (limit is 5 for Gemini)
+LLM_RPD_LIMIT = 500  # Daily limit: 18 to be safe (limit is 20 for Gemini)
 
 
 # Cache responses from JSON file
@@ -206,7 +220,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
     bot_mentioned = is_bot_mentioned(message_text)
     debug("Bot mentioned check: %s for message: %s", bot_mentioned, message_text)
     debug("USE_LLM setting: %s", USE_LLM)
-    debug("GEMINI_API_KEY configured: %s", bool(GEMINI_API_KEY))
+    debug("LLM_PROVIDER: %s", LLM_PROVIDER)
 
     if bot_mentioned:
         if USE_LLM:
@@ -476,7 +490,7 @@ async def send_pic(update: Update, pic) -> None:
 
 
 async def respond_with_llm_message(update):
-    """Handle LLM responses when bot is mentioned using Google Gemini API."""
+    """Handle LLM responses when bot is mentioned using Gemini or Grok API."""
     debug("LLM response function called")
     message_text = update.message.text
     # Remove bot mention and any punctuation after it
@@ -484,18 +498,21 @@ async def respond_with_llm_message(update):
     debug("Original message: %s", message_text)
     debug("Processed prompt: %s", prompt)
 
-    if not GEMINI_API_KEY:
-        # debug("GEMINI_API_KEY not configured")
-        await update.message.reply_text("Sorry, AI service is not configured.")
+    # Check if API is configured
+    if LLM_PROVIDER == "grok" and not GROK_API_KEY:
+        await update.message.reply_text("Sorry, Grok AI service is not configured.")
+        return
+    elif LLM_PROVIDER == "gemini" and not GEMINI_API_KEY:
+        await update.message.reply_text("Sorry, Gemini AI service is not configured.")
         return
 
     # Rate limiting check
     user_id = update.effective_user.id
     current_time = time.time()
     # Clean old timestamps (older than 60 seconds)
-    gemini_rate_limit[user_id] = [t for t in gemini_rate_limit[user_id] if current_time - t < 60]
+    llm_rate_limit[user_id] = [t for t in llm_rate_limit[user_id] if current_time - t < 60]
 
-    if len(gemini_rate_limit[user_id]) >= GEMINI_RPM_LIMIT:
+    if len(llm_rate_limit[user_id]) >= LLM_RPM_LIMIT:
         debug("Rate limit hit for user %s", user_id)
         bot_response = (
             "Вибачте, забагато запитів. Почекайте хвилину."
@@ -504,9 +521,21 @@ async def respond_with_llm_message(update):
         )
         await update.message.reply_text(bot_response)
         return
+    
+    # Check daily limit
+    if llm_daily_limit[user_id] >= LLM_RPD_LIMIT:
+        debug("Daily limit hit for user %s", user_id)
+        bot_response = (
+            "Вибачте, денний ліміт запитів вичерпано. Спробуйте завтра."
+            if language == "uk"
+            else "Sorry, daily request limit reached. Try again tomorrow."
+        )
+        await update.message.reply_text(bot_response)
+        return
 
     # Add current request timestamp
-    gemini_rate_limit[user_id].append(current_time)
+    llm_rate_limit[user_id].append(current_time)
+    llm_daily_limit[user_id] += 1
 
     try:
         # Check if user is asking for image generation and modify prompt
@@ -540,88 +569,18 @@ async def respond_with_llm_message(update):
             await update.message.reply_text(bot_response)
             return
 
-        # Initialize the Gemini model
-        debug("Initializing Gemini model: %s", GEMINI_MODEL)
-        plain_text_instruction = "Provide the entire response exclusively as plain text. Do not use any Markdown formatting (no **bold**, *italics*, # headers, or lists). The response must be text only. Provide concise, short answers. Aim for 1-3 sentences."
-
-        model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=plain_text_instruction)
-
-        # Try different approach - rephrase any potentially problematic prompts
+        # Prepare prompt
         debug("Original prompt: %s", prompt)
         safe_prompt = f"Відповідай українською мовою як дружній асистент. Питання користувача: {prompt}"
         debug("Modified safe prompt: %s", safe_prompt)
 
-        # Generate response using Gemini with both safety settings and safe prompting
-        debug("Sending request to Gemini API with model: %s", GEMINI_MODEL)
-        safety_settings = {
-            genai.types.HarmCategory.HARM_CATEGORY_HARASSMENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
-            genai.types.HarmCategory.HARM_CATEGORY_HATE_SPEECH: genai.types.HarmBlockThreshold.BLOCK_NONE,
-            genai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: genai.types.HarmBlockThreshold.BLOCK_NONE,
-            genai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
-        }
-        contents = [{'role': 'user', 'parts': [safe_prompt]}]
-        response = await asyncio.to_thread(
-            model.generate_content,
-            contents,  # Pass the simplified list here
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.7,
-                top_p=0.9,
-                top_k=30,
-                max_output_tokens=1024,
-            ),
-            safety_settings=safety_settings,
-        )
-        debug("Successfully received response from Gemini API")
-
-        # Handle response with safety filter checks
-        if hasattr(response, 'candidates') and response.candidates:
-            candidate = response.candidates[0]
-            debug("Response candidate finish_reason: %s", getattr(candidate, 'finish_reason', 'None'))
-            debug("Response candidate safety_ratings: %s", getattr(candidate, 'safety_ratings', 'None'))
-
-            if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
-                debug("Safety filter triggered - finish_reason: 2, trying simpler approach")
-                # Try a much simpler, generic response for blocked content
-                try:
-                    simple_response = await asyncio.to_thread(
-                        model.generate_content,
-                        "Відповідь українською мовою: дай загальну інформацію про: " + prompt,
-                        safety_settings=safety_settings,
-                    )
-                    if simple_response.text:
-                        bot_response = f"Ось загальна інформація: {simple_response.text.strip()}"
-                    else:
-                        bot_response = (
-                            "Вибачте, не можу надати детальну відповідь на це питання."
-                            if language == "uk"
-                            else "Sorry, I can't provide a detailed answer to this question."
-                        )
-                except:  # --- IGNORE --- # pylint: disable=bare-except
-                    bot_response = (
-                        "Вибачте, не можу надати детальну відповідь на це питання."
-                        if language == "uk"
-                        else "Sorry, I can't provide a detailed answer to this question."
-                    )
-            elif response.text:
-                # Remove Markdown formatting from response
-                bot_response = response.text.strip()
-                # Remove common Markdown syntax
-                bot_response = re.sub(r'\*+', '', bot_response)  # Bold text
-                bot_response = bot_response.replace('*', '')  # Italic text
-                bot_response = bot_response.replace('`', '')  # Code blocks
-                bot_response = bot_response.replace('#', '')  # Headers
-            else:
-                bot_response = (
-                    "Вибачте, я не можу згенерувати відповідь."
-                    if language == "uk"
-                    else "Sorry, I couldn't generate a response."
-                )
+        # Call appropriate LLM provider
+        if LLM_PROVIDER == "grok":
+            debug("Using Grok API with model: %s", GROK_MODEL)
+            bot_response = await call_grok_api(safe_prompt, update)
         else:
-            bot_response = (
-                "Вибачте, я не можу згенерувати відповідь."
-                if language == "uk"
-                else "Sorry, I couldn't generate a response."
-            )
+            debug("Using Gemini API with model: %s", GEMINI_MODEL)
+            bot_response = await call_gemini_api(safe_prompt, prompt, update)
 
         await update.message.reply_text(bot_response)
 
@@ -629,12 +588,12 @@ async def respond_with_llm_message(update):
         import traceback
 
         error_msg = str(e)
-        error("Error in Gemini API request: %s (Type: %s)", error_msg, type(e).__name__)
+        error("Error in LLM API request: %s (Type: %s)", error_msg, type(e).__name__)
         error("Full traceback: %s", traceback.format_exc())
 
         # Check for rate limit (429) error
         if "429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower():
-            error("Rate limit exceeded (429) - Too many requests to Gemini API")
+            error("Rate limit exceeded (429) - Too many requests to LLM API")
             bot_response = (
                 "Вибачте, перевищено ліміт запитів до AI. Спробуйте пізніше."
                 if language == "uk"
@@ -648,6 +607,139 @@ async def respond_with_llm_message(update):
             )
 
         await update.message.reply_text(bot_response)
+
+
+async def call_grok_api(safe_prompt: str, update) -> str:
+    """Call Grok API and return response."""
+    try:
+        max_retries = 2
+        retry_delay = 60
+        
+        for attempt in range(max_retries):
+            try:
+                response = await grok_client.chat.completions.create(
+                    model=GROK_MODEL,
+                    messages=[{"role": "user", "content": safe_prompt}],
+                    max_tokens=1024,
+                    temperature=0.7
+                )
+                return response.choices[0].message.content.strip()
+            except Exception as retry_error:
+                error_msg = str(retry_error)
+                if ("429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower()) and attempt < max_retries - 1:
+                    debug("Rate limit hit, waiting %s seconds before retry (attempt %s/%s)", retry_delay, attempt + 1, max_retries)
+                    wait_msg = (
+                        f"Перевищено ліміт запитів. Зачекайте {retry_delay} секунд, я спробую ще раз..."
+                        if language == "uk"
+                        else f"Rate limit exceeded. Waiting {retry_delay} seconds before retrying..."
+                    )
+                    await update.message.reply_text(wait_msg)
+                    await asyncio.sleep(retry_delay)
+                else:
+                    raise
+    except Exception:
+        return (
+            "Вибачте, я не можу згенерувати відповідь."
+            if language == "uk"
+            else "Sorry, I couldn't generate a response."
+        )
+
+
+async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
+    """Call Gemini API and return response."""
+    try:
+        plain_text_instruction = "Provide the entire response exclusively as plain text. Do not use any Markdown formatting (no **bold**, *italics*, # headers, or lists). The response must be text only. Provide concise, short answers. Aim for 1-3 sentences."
+        model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=plain_text_instruction)
+        safety_settings = {
+            genai.types.HarmCategory.HARM_CATEGORY_HARASSMENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
+            genai.types.HarmCategory.HARM_CATEGORY_HATE_SPEECH: genai.types.HarmBlockThreshold.BLOCK_NONE,
+            genai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: genai.types.HarmBlockThreshold.BLOCK_NONE,
+            genai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: genai.types.HarmBlockThreshold.BLOCK_NONE,
+        }
+        contents = [{'role': 'user', 'parts': [safe_prompt]}]
+        
+        max_retries = 2
+        retry_delay = 60
+        
+        for attempt in range(max_retries):
+            try:
+                response = await asyncio.to_thread(
+                    model.generate_content,
+                    contents,
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=0.7,
+                        top_p=0.9,
+                        top_k=30,
+                        max_output_tokens=1024,
+                    ),
+                    safety_settings=safety_settings,
+                )
+                debug("Successfully received response from Gemini API")
+                break
+            except Exception as retry_error:
+                error_msg = str(retry_error)
+                if ("429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower()) and attempt < max_retries - 1:
+                    debug("Rate limit hit, waiting %s seconds before retry (attempt %s/%s)", retry_delay, attempt + 1, max_retries)
+                    wait_msg = (
+                        f"Перевищено ліміт запитів. Зачекайте {retry_delay} секунд, я спробую ще раз..."
+                        if language == "uk"
+                        else f"Rate limit exceeded. Waiting {retry_delay} seconds before retrying..."
+                    )
+                    await update.message.reply_text(wait_msg)
+                    await asyncio.sleep(retry_delay)
+                else:
+                    raise
+        if hasattr(response, 'candidates') and response.candidates:
+            candidate = response.candidates[0]
+            debug("Response candidate finish_reason: %s", getattr(candidate, 'finish_reason', 'None'))
+            debug("Response candidate safety_ratings: %s", getattr(candidate, 'safety_ratings', 'None'))
+
+            if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
+                debug("Safety filter triggered - finish_reason: 2, trying simpler approach")
+                try:
+                    simple_response = await asyncio.to_thread(
+                        model.generate_content,
+                        "Відповідь українською мовою: дай загальну інформацію про: " + prompt,
+                        safety_settings=safety_settings,
+                    )
+                    if simple_response.text:
+                        return f"Ось загальна інформація: {simple_response.text.strip()}"
+                    else:
+                        return (
+                            "Вибачте, не можу надати детальну відповідь на це питання."
+                            if language == "uk"
+                            else "Sorry, I can't provide a detailed answer to this question."
+                        )
+                except:  # --- IGNORE --- # pylint: disable=bare-except
+                    return (
+                        "Вибачте, не можу надати детальну відповідь на це питання."
+                        if language == "uk"
+                        else "Sorry, I can't provide a detailed answer to this question."
+                    )
+            elif response.text:
+                # Remove Markdown formatting
+                bot_response = response.text.strip()
+                bot_response = re.sub(r'\*+', '', bot_response)
+                bot_response = bot_response.replace('*', '').replace('`', '').replace('#', '')
+                return bot_response
+            else:
+                return (
+                    "Вибачте, я не можу згенерувати відповідь."
+                    if language == "uk"
+                    else "Sorry, I couldn't generate a response."
+                )
+        else:
+            return (
+                "Вибачте, я не можу згенерувати відповідь."
+                if language == "uk"
+                else "Sorry, I couldn't generate a response."
+            )
+    except Exception:
+        return (
+            "Вибачте, я не можу згенерувати відповідь."
+            if language == "uk"
+            else "Sorry, I couldn't generate a response."
+        )
 
 
 def main():
