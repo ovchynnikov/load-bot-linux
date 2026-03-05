@@ -1,7 +1,7 @@
-python-telegram-bot[ext]==22.6
-python-dotenv==1.2.1
-yt-dlp==2026.2.21
-gallery-dl==1.31.6
-aiohttp==3.13.3
+python-telegram-bot[ext]>=22.6
+python-dotenv>=1.2.2
+yt-dlp>=2026.3.3
+gallery-dl>=1.31.7
+aiohttp>=3.13.3
 google-generativeai>=0.8.6
-openai>=1.0.0
+openai>=2.24.0
