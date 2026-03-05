@@ -700,25 +700,32 @@ async def respond_with_llm_message(update):
             if len(conversation_context[user_id]) > MAX_CONTEXT_MESSAGES:
                 conversation_context[user_id] = conversation_context[user_id][-MAX_CONTEXT_MESSAGES:]
 
-        # Save user data to database
-        debug(
-            "Saving user data to database: user_id=%s, context=%d messages, daily=%d/%s",
-            user_id,
-            len(conversation_context[user_id]),
-            llm_daily_limit[user_id]["count"],
-            llm_daily_limit[user_id]["date"],
-        )
-        await asyncio.to_thread(
-            db_storage.save_user_data,
-            user_id,
-            conversation_context[user_id],
-            llm_rate_limit[user_id],
-            llm_daily_limit[user_id]["count"],
-            llm_daily_limit[user_id]["date"],
-            user_last_seen[user_id],
-        )
-
+        # Send reply first, then save to DB (best-effort persistence)
         await update.message.reply_text(bot_response)
+
+        # Save user data to database (best-effort, don't fail on DB errors)
+        async def save_to_db():
+            try:
+                debug(
+                    "Saving user data to database: user_id=%s, context=%d messages, daily=%d/%s",
+                    user_id,
+                    len(conversation_context[user_id]),
+                    llm_daily_limit[user_id]["count"],
+                    llm_daily_limit[user_id]["date"],
+                )
+                await asyncio.to_thread(
+                    db_storage.save_user_data,
+                    user_id,
+                    conversation_context[user_id],
+                    llm_rate_limit[user_id],
+                    llm_daily_limit[user_id]["count"],
+                    llm_daily_limit[user_id]["date"],
+                    user_last_seen[user_id],
+                )
+            except Exception as db_error:  # pylint: disable=broad-except
+                error("Failed to save user data to database: %s", db_error)
+
+        asyncio.create_task(save_to_db())
 
     except Exception as e:  # pylint: disable=broad-except
         # Remove tentative timestamp on failure
@@ -841,12 +848,6 @@ async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
 
     # Check if response was set after retries
     if response is None:
-        fail_msg = (
-            "Вибачте, не вдалося отримати відповідь. Спробуйте пізніше."
-            if language == "uk"
-            else "Sorry, failed to get a response. Please try again later."
-        )
-        await update.message.reply_text(fail_msg)
         raise Exception("Failed to get response after retries")  # pylint: disable=broad-exception-raised
 
     if hasattr(response, 'candidates') and response.candidates:
@@ -891,27 +892,32 @@ async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
 async def cleanup_stale_users():
     """Remove inactive users from memory and database to prevent unbounded growth."""
     while True:
-        await asyncio.sleep(USER_CLEANUP_INTERVAL_HOURS * 3600)
-        ttl_seconds = USER_CLEANUP_TTL_DAYS * 86400
+        try:
+            await asyncio.sleep(USER_CLEANUP_INTERVAL_HOURS * 3600)
+            ttl_seconds = USER_CLEANUP_TTL_DAYS * 86400
 
-        # Get stale users from database
-        stale_users = await asyncio.to_thread(db_storage.get_stale_users, ttl_seconds)
+            # Get stale users from database
+            stale_users = await asyncio.to_thread(db_storage.get_stale_users, ttl_seconds)
 
-        for user_id in stale_users:
-            # Remove from memory
-            if user_id in conversation_context:
-                del conversation_context[user_id]
-            if user_id in llm_rate_limit:
-                del llm_rate_limit[user_id]
-            if user_id in llm_daily_limit:
-                del llm_daily_limit[user_id]
-            if user_id in user_last_seen:
-                del user_last_seen[user_id]
-            # Remove from database
-            await asyncio.to_thread(db_storage.delete_user_data, user_id)
+            for user_id in stale_users:
+                # Remove from memory
+                if user_id in conversation_context:
+                    del conversation_context[user_id]
+                if user_id in llm_rate_limit:
+                    del llm_rate_limit[user_id]
+                if user_id in llm_daily_limit:
+                    del llm_daily_limit[user_id]
+                if user_id in user_last_seen:
+                    del user_last_seen[user_id]
+                # Remove from database
+                await asyncio.to_thread(db_storage.delete_user_data, user_id)
 
-        if stale_users:
-            info("Cleaned up %d inactive users (TTL: %d days)", len(stale_users), USER_CLEANUP_TTL_DAYS)
+            if stale_users:
+                info("Cleaned up %d inactive users (TTL: %d days)", len(stale_users), USER_CLEANUP_TTL_DAYS)
+        except Exception as cleanup_error:  # pylint: disable=broad-except
+            error("Error in cleanup_stale_users: %s", cleanup_error)
+            error("Full traceback: %s", traceback.format_exc())
+            await asyncio.sleep(60)  # Wait before retrying
 
 
 def main():
@@ -940,8 +946,6 @@ def main():
     Returns:
         None
     """
-    global cleanup_task  # pylint: disable=global-statement
-
     bot_token = os.getenv("BOT_TOKEN")
     application = Application.builder().token(bot_token).build()
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
@@ -955,7 +959,6 @@ def main():
 
     # Cancel cleanup task and close DB on shutdown
     async def post_shutdown(app):  # pylint: disable=unused-argument
-        global cleanup_task  # pylint: disable=global-statement
         if cleanup_task is not None:
             cleanup_task.cancel()
             try:
