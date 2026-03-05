@@ -81,6 +81,9 @@ ALLOWED_PROVIDERS = {"grok", "gemini"}
 # Initialize database storage
 db_storage = BotStorage()
 
+# Cleanup task reference
+cleanup_task = None
+
 
 # Cache responses from JSON file
 @lru_cache(maxsize=1)
@@ -553,7 +556,7 @@ async def respond_with_llm_message(update):
     # Load user data from database on first access
     if user_id not in llm_daily_limit:
         debug("Loading user data from database for user_id: %s", user_id)
-        user_data = db_storage.load_user_data(user_id)
+        user_data = await asyncio.to_thread(db_storage.load_user_data, user_id)
         if user_data:
             debug(
                 "Found user data in database: context=%d messages, rate_limit=%d timestamps, daily=%d/%s",
@@ -565,7 +568,9 @@ async def respond_with_llm_message(update):
             conversation_context[user_id] = user_data["conversation_context"]
             llm_rate_limit[user_id] = user_data["rate_limit_timestamps"]
             llm_daily_limit[user_id] = {"count": user_data["daily_count"], "date": user_data["daily_date"]}
-            user_last_seen[user_id] = user_data["last_seen"]
+            # Only update last_seen if DB value is newer
+            if user_id not in user_last_seen or user_data["last_seen"] > user_last_seen[user_id]:
+                user_last_seen[user_id] = user_data["last_seen"]
         else:
             debug("No existing data found in database for user_id: %s", user_id)
 
@@ -646,11 +651,28 @@ async def respond_with_llm_message(update):
             context_messages = []
 
         # Create prompt with context if available
-        if context_messages:
-            context_str = "\n".join([f"Користувач: {msg}\nАсистент: {resp}" for msg, resp in context_messages])
-            safe_prompt = f"Попередня розмова:\n{context_str}\n\nПоточне питання користувача: {prompt}\n\nВідповідай українською мовою як дружній асистент. Не вітайся і не прощайся."
+        if language == "uk":
+            user_label = "Користувач"
+            assistant_label = "Асистент"
+            instruction = "Відповідай українською мовою як дружній асистент. Не вітайся і не прощайся."
         else:
-            safe_prompt = f"Відповідай українською мовою як дружній асистент. Не вітайся і не прощайся. Питання користувача: {prompt}"
+            user_label = "User"
+            assistant_label = "Assistant"
+            instruction = "Answer in English as a friendly assistant. Don't greet or say goodbye."
+
+        if context_messages:
+            context_str = "\n".join(
+                [f"{user_label}: {msg}\n{assistant_label}: {resp}" for msg, resp in context_messages]
+            )
+            if language == "uk":
+                safe_prompt = f"Попередня розмова:\n{context_str}\n\nПоточне питання користувача: {prompt}\n\n{instruction}"
+            else:
+                safe_prompt = f"Previous conversation:\n{context_str}\n\nCurrent user question: {prompt}\n\n{instruction}"
+        else:
+            if language == "uk":
+                safe_prompt = f"{instruction} Питання користувача: {prompt}"
+            else:
+                safe_prompt = f"{instruction} User question: {prompt}"
 
         debug("Modified safe prompt with context: %s", safe_prompt[:200])
 
@@ -682,7 +704,8 @@ async def respond_with_llm_message(update):
             llm_daily_limit[user_id]["count"],
             llm_daily_limit[user_id]["date"],
         )
-        db_storage.save_user_data(
+        await asyncio.to_thread(
+            db_storage.save_user_data,
             user_id,
             conversation_context[user_id],
             llm_rate_limit[user_id],
@@ -847,7 +870,7 @@ async def cleanup_stale_users():
         ttl_seconds = USER_CLEANUP_TTL_DAYS * 86400
 
         # Get stale users from database
-        stale_users = db_storage.get_stale_users(ttl_seconds)
+        stale_users = await asyncio.to_thread(db_storage.get_stale_users, ttl_seconds)
 
         for user_id in stale_users:
             # Remove from memory
@@ -860,7 +883,7 @@ async def cleanup_stale_users():
             if user_id in user_last_seen:
                 del user_last_seen[user_id]
             # Remove from database
-            db_storage.delete_user_data(user_id)
+            await asyncio.to_thread(db_storage.delete_user_data, user_id)
 
         if stale_users:
             info("Cleaned up %d inactive users (TTL: %d days)", len(stale_users), USER_CLEANUP_TTL_DAYS)
@@ -892,6 +915,8 @@ def main():
     Returns:
         None
     """
+    global cleanup_task  # pylint: disable=global-statement
+
     bot_token = os.getenv("BOT_TOKEN")
     application = Application.builder().token(bot_token).build()
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
@@ -900,9 +925,21 @@ def main():
 
     # Start cleanup task after event loop is running
     async def post_init(app):  # pylint: disable=unused-argument
-        asyncio.create_task(cleanup_stale_users())
+        global cleanup_task  # pylint: disable=global-statement
+        cleanup_task = asyncio.create_task(cleanup_stale_users())
+
+    # Cancel cleanup task on shutdown
+    async def post_shutdown(app):  # pylint: disable=unused-argument
+        global cleanup_task  # pylint: disable=global-statement
+        if cleanup_task is not None:
+            cleanup_task.cancel()
+            try:
+                await cleanup_task
+            except asyncio.CancelledError:
+                pass
 
     application.post_init = post_init
+    application.post_shutdown = post_shutdown
 
     info("Bot started. Ctrl+C to stop")
     application.run_polling()

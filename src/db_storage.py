@@ -30,6 +30,7 @@ class BotStorage:
                 last_seen REAL
             )
         """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_data_last_seen ON user_data(last_seen)")
         self.conn.commit()
 
     def load_user_data(self, user_id):
