@@ -3,6 +3,7 @@
 import sqlite3
 import json
 import os
+import time
 from logger import debug
 
 
@@ -76,8 +77,6 @@ class BotStorage:
 
     def get_stale_users(self, ttl_seconds):
         """Get list of user IDs that haven't been seen within TTL."""
-        import time
-
         current_time = time.time()
         cursor = self.conn.cursor()
         cursor.execute("SELECT user_id FROM user_data WHERE last_seen < ?", (current_time - ttl_seconds,))

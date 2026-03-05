@@ -665,9 +665,13 @@ async def respond_with_llm_message(update):
                 [f"{user_label}: {msg}\n{assistant_label}: {resp}" for msg, resp in context_messages]
             )
             if language == "uk":
-                safe_prompt = f"Попередня розмова:\n{context_str}\n\nПоточне питання користувача: {prompt}\n\n{instruction}"
+                safe_prompt = (
+                    f"Попередня розмова:\n{context_str}\n\nПоточне питання користувача: {prompt}\n\n{instruction}"
+                )
             else:
-                safe_prompt = f"Previous conversation:\n{context_str}\n\nCurrent user question: {prompt}\n\n{instruction}"
+                safe_prompt = (
+                    f"Previous conversation:\n{context_str}\n\nCurrent user question: {prompt}\n\n{instruction}"
+                )
         else:
             if language == "uk":
                 safe_prompt = f"{instruction} Питання користувача: {prompt}"
@@ -797,6 +801,7 @@ async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
 
     max_retries = 2
     retry_delay = 60
+    response = None
 
     for attempt in range(max_retries):
         try:
@@ -833,6 +838,17 @@ async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
                 await asyncio.sleep(retry_delay)
             else:
                 raise
+
+    # Check if response was set after retries
+    if response is None:
+        fail_msg = (
+            "Вибачте, не вдалося отримати відповідь. Спробуйте пізніше."
+            if language == "uk"
+            else "Sorry, failed to get a response. Please try again later."
+        )
+        await update.message.reply_text(fail_msg)
+        raise Exception("Failed to get response after retries")  # pylint: disable=broad-exception-raised
+
     if hasattr(response, 'candidates') and response.candidates:
         candidate = response.candidates[0]
         debug("Response candidate finish_reason: %s", getattr(candidate, 'finish_reason', 'None'))
@@ -840,17 +856,26 @@ async def call_gemini_api(safe_prompt: str, prompt: str, update) -> str:
 
         if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
             debug("Safety filter triggered - finish_reason: 2, trying simpler approach")
+            fallback_instruction = (
+                "Відповідь українською мовою: дай загальну інформацію про: "
+                if language == "uk"
+                else "Answer in English: give general information about: "
+            )
             simple_response = await asyncio.to_thread(
                 model.generate_content,
-                "Відповідь українською мовою: дай загальну інформацію про: " + prompt,
+                fallback_instruction + prompt,
                 safety_settings=safety_settings,
             )
             if simple_response.text:
-                return f"Ось загальна інформація: {simple_response.text.strip()}"
+                prefix = "Ось загальна інформація: " if language == "uk" else "Here's general information: "
+                return f"{prefix}{simple_response.text.strip()}"
             else:
-                raise Exception(  # pylint: disable=broad-exception-raised
+                error_msg = (
                     "Вибачте, не можу надати детальну відповідь на це питання."
+                    if language == "uk"
+                    else "Sorry, I can't provide a detailed answer to this question."
                 )
+                raise Exception(error_msg)  # pylint: disable=broad-exception-raised
         elif response.text:
             # Remove Markdown formatting
             bot_response = response.text.strip()
@@ -928,7 +953,7 @@ def main():
         global cleanup_task  # pylint: disable=global-statement
         cleanup_task = asyncio.create_task(cleanup_stale_users())
 
-    # Cancel cleanup task on shutdown
+    # Cancel cleanup task and close DB on shutdown
     async def post_shutdown(app):  # pylint: disable=unused-argument
         global cleanup_task  # pylint: disable=global-statement
         if cleanup_task is not None:
@@ -937,6 +962,12 @@ def main():
                 await cleanup_task
             except asyncio.CancelledError:
                 pass
+        # Close database connection
+        try:
+            db_storage.close()
+            debug("Database connection closed")
+        except Exception as e:  # pylint: disable=broad-except
+            error("Error closing database: %s", e)
 
     application.post_init = post_init
     application.post_shutdown = post_shutdown
