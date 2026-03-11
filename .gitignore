@@ -5,6 +5,11 @@
 # instagram_cookies.txt should not be tracked by git because it has cookies
 instagram_cookies.txt
 
+# SQLite database
+src/data/
+*.db
+*.db-journal
+
 # Byte-compiled / optimized / compiled Python files
 __pycache__/
 *.py[cod]
