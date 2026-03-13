@@ -615,19 +615,19 @@ async def respond_with_llm_message(update):
     try:
         # Check if user is asking for image generation and modify prompt
         image_keywords = [
-            'картинку',
-            'картинка',
-            'зображення',
-            'image',
-            'фото',
-            'picture',
-            'згенеруй',
-            'generate',
-            'створи',
-            'create',
-            'покажи',
-            'покажи мне',
-            'покажи мені',
+            # 'картинку',
+            # 'картинка',
+            # 'зображення',
+            # 'image',
+            # 'фото',
+            # 'picture',
+            # 'згенеруй',
+            # 'generate',
+            # 'створи',
+            # 'create',
+            # 'покажи',
+            # 'покажи мне',
+            # 'покажи мені',
         ]
         # Check both original message and processed prompt
         original_text = message_text.lower()
