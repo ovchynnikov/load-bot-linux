@@ -17,6 +17,7 @@ from telegram import Update, InputMediaPhoto, InputMediaVideo
 from telegram.error import TimedOut, NetworkError, TelegramError
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
 from telegram.constants import MessageEntityType
+from telegram.request import HTTPXRequest
 from logger import error, info, debug
 from general_error_handler import error_handler
 from permissions import inform_user_not_allowed, is_user_or_chat_not_allowed, supported_sites
@@ -47,8 +48,10 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 GROK_API_KEY = os.getenv("GROK_API_KEY")
 GROK_MODEL = os.getenv("GROK_MODEL", "grok-4-latest")
-TELEGRAM_WRITE_TIMEOUT = 8000
-TELEGRAM_READ_TIMEOUT = 8000
+TELEGRAM_CONNECT_TIMEOUT = 30
+TELEGRAM_POOL_TIMEOUT = 10
+TELEGRAM_READ_TIMEOUT = 60
+TELEGRAM_WRITE_TIMEOUT = 60
 
 # Configure Gemini API
 if GEMINI_API_KEY:
@@ -408,6 +411,7 @@ async def send_video(update: Update, video, has_spoiler: bool) -> None:
                     height=height,
                     has_spoiler=has_spoiler,
                     disable_notification=True,
+                    connect_timeout=TELEGRAM_CONNECT_TIMEOUT,
                     write_timeout=TELEGRAM_WRITE_TIMEOUT,
                     read_timeout=TELEGRAM_READ_TIMEOUT,
                     reply_to_message_id=update.message.message_id,
@@ -436,6 +440,7 @@ async def send_video(update: Update, video, has_spoiler: bool) -> None:
             await update.message.chat.send_media_group(
                 media=media_group,
                 disable_notification=True,
+                connect_timeout=TELEGRAM_CONNECT_TIMEOUT,
                 write_timeout=TELEGRAM_WRITE_TIMEOUT,
                 read_timeout=TELEGRAM_READ_TIMEOUT,
             )
@@ -468,6 +473,7 @@ async def send_pic(update: Update, pic) -> None:
                 await update.message.chat.send_photo(
                     photo=pic_file,
                     disable_notification=True,
+                    connect_timeout=TELEGRAM_CONNECT_TIMEOUT,
                     write_timeout=TELEGRAM_WRITE_TIMEOUT,
                     read_timeout=TELEGRAM_READ_TIMEOUT,
                 )
@@ -494,6 +500,7 @@ async def send_pic(update: Update, pic) -> None:
             await update.message.chat.send_media_group(
                 media=media_group,
                 disable_notification=True,
+                connect_timeout=TELEGRAM_CONNECT_TIMEOUT,
                 write_timeout=TELEGRAM_WRITE_TIMEOUT,
                 read_timeout=TELEGRAM_READ_TIMEOUT,
             )
@@ -947,7 +954,13 @@ def main():
         None
     """
     bot_token = os.getenv("BOT_TOKEN")
-    application = Application.builder().token(bot_token).build()
+    request = HTTPXRequest(
+            connect_timeout=TELEGRAM_CONNECT_TIMEOUT,
+            pool_timeout=TELEGRAM_POOL_TIMEOUT,
+            read_timeout=TELEGRAM_READ_TIMEOUT,
+            write_timeout=TELEGRAM_WRITE_TIMEOUT,
+        )
+    application = Application.builder().token(bot_token).request(request).build()
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     # This handler will receive every error which happens in your bot
     application.add_error_handler(error_handler)
