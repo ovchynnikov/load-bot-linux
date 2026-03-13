@@ -48,10 +48,10 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 GROK_API_KEY = os.getenv("GROK_API_KEY")
 GROK_MODEL = os.getenv("GROK_MODEL", "grok-4-latest")
-TELEGRAM_CONNECT_TIMEOUT = 30
-TELEGRAM_POOL_TIMEOUT = 10
-TELEGRAM_READ_TIMEOUT = 60
-TELEGRAM_WRITE_TIMEOUT = 60
+TELEGRAM_CONNECT_TIMEOUT = 60
+TELEGRAM_POOL_TIMEOUT = 30
+TELEGRAM_READ_TIMEOUT = 120
+TELEGRAM_WRITE_TIMEOUT = 120
 
 # Configure Gemini API
 if GEMINI_API_KEY:
@@ -955,11 +955,11 @@ def main():
     """
     bot_token = os.getenv("BOT_TOKEN")
     request = HTTPXRequest(
-            connect_timeout=TELEGRAM_CONNECT_TIMEOUT,
-            pool_timeout=TELEGRAM_POOL_TIMEOUT,
-            read_timeout=TELEGRAM_READ_TIMEOUT,
-            write_timeout=TELEGRAM_WRITE_TIMEOUT,
-        )
+        connect_timeout=TELEGRAM_CONNECT_TIMEOUT,
+        pool_timeout=TELEGRAM_POOL_TIMEOUT,
+        read_timeout=TELEGRAM_READ_TIMEOUT,
+        write_timeout=TELEGRAM_WRITE_TIMEOUT,
+    )
     application = Application.builder().token(bot_token).request(request).build()
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     # This handler will receive every error which happens in your bot
