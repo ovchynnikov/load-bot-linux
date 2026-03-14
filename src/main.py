@@ -9,7 +9,11 @@ import time
 import traceback
 from datetime import datetime
 import google.generativeai as genai
-from openai import AsyncOpenAI, OpenAI, OpenAIError
+from openai import AsyncOpenAI
+try:
+    import xai_sdk
+except ImportError:
+    xai_sdk = None
 from functools import lru_cache
 from collections import defaultdict
 from dotenv import load_dotenv
@@ -62,6 +66,11 @@ if GEMINI_API_KEY:
 grok_client = None
 if GROK_API_KEY:
     grok_client = AsyncOpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
+
+# Configure xAI image API client (grok-imagine-image)
+xai_client = None
+if GROK_API_KEY and xai_sdk is not None:
+    xai_client = xai_sdk.AsyncClient(api_key=GROK_API_KEY)
 
 # Rate limiting for LLM APIs
 llm_rate_limit = defaultdict(list)  # {user_id: [timestamp1, timestamp2, ...]}
@@ -198,58 +207,45 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
         )
         return
 
-    if not grok_client:
+    if not xai_sdk:
         await update.message.reply_text(
-            "Grok клієнт неініціалізований. Перевірте конфігурацію GROK_API_KEY.",
+            "xai_sdk не встановлено. Додайте залежність xai-sdk до requirements та перезапустіть.",
+            reply_to_message_id=update.message.message_id,
+        )
+        return
+
+    if not xai_client:
+        await update.message.reply_text(
+            "Не вдалося ініціалізувати xAI клієнт. Перевірте GROK_API_KEY.",
             reply_to_message_id=update.message.message_id,
         )
         return
 
     try:
-        # `response_format` may not be supported in some openai client versions, so omit it.
-        image_response = await grok_client.images.generate(
-            model=GROK_IMG_MODEL,
+        # Use xAI image generation API per docs (grok-imagine-image)
+        image_response = await xai_client.image.sample(
             prompt=prompt,
-            size="1024x1024",
+            model=GROK_IMG_MODEL,
         )
 
-        image_url = None
-        b64_data = None
-
-        if getattr(image_response, "data", None):
-            first = image_response.data[0]
-            image_url = getattr(first, "url", None)
-            b64_data = getattr(first, "b64_json", None)
-            # __openai compatibility: in some versions image_response.data[0] may be {"b64_json": ...},
-            # in others maybe {"url": ...}. When both are missing, try direct key lookup.
+        image_url = getattr(image_response, "url", None)
+        if not image_url and hasattr(image_response, "image"):
+            image_b64 = getattr(image_response, "image")
+            image_url = None
         else:
-            # Fallback for dict-like response from alternative versions
-            answer_data = None
-            if isinstance(image_response, dict):
-                answer_data = image_response.get("data")
-            if answer_data:
-                maybe_first = answer_data[0]
-                if isinstance(maybe_first, dict):
-                    image_url = maybe_first.get("url")
-                    b64_data = maybe_first.get("b64_json")
+            image_b64 = None
 
-        if not image_url and not b64_data:
-            raise ValueError("Не вдалося отримати дані зображення від API")
+        if not image_url and not image_b64:
+            raise ValueError("Не вдалося отримати результат з xAI API")
 
-        # If API returned b64_json data, decode and send as bytes
-        if b64_data:
-            import base64
-
-            file_bytes = base64.b64decode(b64_data)
-            await update.message.reply_photo(photo=file_bytes, caption="Ось ваше зображення 🖼️")
-
-        # If API returned URL, send by URL
-        elif image_url:
+        if image_url:
             await update.message.reply_photo(photo=image_url, caption="Ось ваше зображення 🖼️")
         else:
-            raise ValueError("Не вдалося отримати зображення для відправки")
+            import base64
+            file_bytes = base64.b64decode(image_b64)
+            await update.message.reply_photo(photo=file_bytes, caption="Ось ваше зображення 🖼️")
 
-    except (OpenAIError, ValueError) as e:
+    except Exception as e:
         error("Image generation failed: %s", e)
         await update.message.reply_text(
             "Вибачте, не вдалося згенерувати зображення. Спробуйте пізніше.",
