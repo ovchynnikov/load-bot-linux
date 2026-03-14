@@ -70,7 +70,11 @@ if GROK_API_KEY:
 # Configure xAI image API client (grok-imagine-image)
 xai_client = None
 if GROK_API_KEY and xai_sdk is not None:
-    xai_client = xai_sdk.AsyncClient(api_key=GROK_API_KEY)
+    try:
+        xai_client = xai_sdk.Client(api_key=GROK_API_KEY)
+    except Exception as e:
+        error("Failed to initialize xai_sdk.Client: %s", e)
+        xai_client = None
 
 # Rate limiting for LLM APIs
 llm_rate_limit = defaultdict(list)  # {user_id: [timestamp1, timestamp2, ...]}
@@ -223,7 +227,9 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
 
     try:
         # Use xAI image generation API per docs (grok-imagine-image)
-        image_response = await xai_client.image.sample(
+        # run sync SDK in thread to avoid loop conflict
+        image_response = await asyncio.to_thread(
+            xai_client.image.sample,
             prompt=prompt,
             model=GROK_IMG_MODEL,
         )
