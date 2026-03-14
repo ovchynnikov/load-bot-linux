@@ -48,6 +48,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 GROK_API_KEY = os.getenv("GROK_API_KEY")
 GROK_MODEL = os.getenv("GROK_MODEL", "grok-4-latest")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_IMG_MODEL = os.getenv("OPENAI_IMG_MODEL", "gpt-image-1-mini")
 TELEGRAM_CONNECT_TIMEOUT = 60
 TELEGRAM_POOL_TIMEOUT = 30
 TELEGRAM_READ_TIMEOUT = 120
@@ -160,6 +162,85 @@ def is_bot_mentioned(message_text: str) -> bool:
     return False
 
 
+def extract_image_prompt(message_text: str) -> str | None:
+    """Extract image generation prompt for commands like 'ботяра, image: ...'."""
+    if not message_text:
+        return None
+
+    lower = message_text.lower()
+    # Match bot command for image generation: ботяра, image: prompt
+    match = re.search(r"ботяра[^\w\d]*image\s*:\s*(.+)", lower)
+    if match:
+        prompt = match.group(1).strip()
+        return prompt or None
+
+    # Fallback for english trigger
+    match = re.search(r"bot\s*:\s*image\s*:\s*(.+)", lower)
+    if match:
+        prompt = match.group(1).strip()
+        return prompt or None
+
+    return None
+
+
+async def generate_image_and_send(update: Update, prompt: str) -> None:
+    """Generate image through Gemini Image API and send to Telegram."""
+    if not prompt:
+        await update.message.reply_text(
+            "Вкажіть, що саме потрібно згенерувати після 'botyara, image:'",
+            reply_to_message_id=update.message.message_id,
+        )
+        return
+
+    if not OPENAI_API_KEY:
+        await update.message.reply_text(
+            "OpenAI API key не налаштовано. Будь ласка, встановіть OPENAI_API_KEY.",
+            reply_to_message_id=update.message.message_id,
+        )
+        return
+
+    try:
+        image_response = openai.Image.create(
+            api_key=OPENAI_API_KEY,
+            model=OPENAI_IMG_MODEL,
+            prompt=prompt,
+            size="512x512",
+            response_format="b64_json",  # щоб точно отримати контент, без URL-посилань
+        )
+
+        image_url = None
+        b64_data = None
+
+        if isinstance(image_response, dict) and image_response.get("data"):
+            first = image_response["data"][0]
+            # openai Image endpoint може повертати url або b64_json залежно від response_format
+            image_url = first.get("url")
+            b64_data = first.get("b64_json")
+
+        if not image_url and not b64_data:
+            raise ValueError("Не вдалося отримати дані зображення від API")
+
+        # If API returned b64_json data, decode and send as bytes
+        if b64_data:
+            import base64
+
+            file_bytes = base64.b64decode(b64_data)
+            await update.message.reply_photo(photo=file_bytes, caption="Ось ваше зображення 🖼️")
+
+        # If API returned URL, send by URL
+        elif image_url:
+            await update.message.reply_photo(photo=image_url, caption="Ось ваше зображення 🖼️")
+        else:
+            raise ValueError("Не вдалося отримати зображення для відправки")
+
+    except Exception as e:
+        error("Image generation failed: %s", e)
+        await update.message.reply_text(
+            "Вибачте, не вдалося згенерувати зображення. Спробуйте пізніше.",
+            reply_to_message_id=update.message.message_id,
+        )
+
+
 def clean_url(message_text: str) -> str:
     """
     Cleans the URL from the message text by removing unwanted characters and usernames.
@@ -246,6 +327,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
     debug("LLM_PROVIDER: %s", LLM_PROVIDER)
 
     if bot_mentioned:
+        image_prompt = extract_image_prompt(message_text)
+        if image_prompt:
+            debug("Bot image command detected with prompt: %s", image_prompt)
+            await generate_image_and_send(update, image_prompt)
+            return
+
         if USE_LLM:
             debug("Calling LLM response function")
             await respond_with_llm_message(update)
