@@ -205,7 +205,7 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
         image_response = client.images.generate(
             model=OPENAI_IMG_MODEL,
             prompt=prompt,
-            size="512x512",
+            size="1024x1024",
         )
 
         image_url = None
