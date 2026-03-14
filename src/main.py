@@ -201,11 +201,11 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
 
     try:
         client = OpenAI(api_key=OPENAI_API_KEY)
+        # `response_format` may not be supported in some openai client versions, so omit it.
         image_response = client.images.generate(
             model=OPENAI_IMG_MODEL,
             prompt=prompt,
             size="512x512",
-            response_format="b64_json",
         )
 
         image_url = None
@@ -215,6 +215,18 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
             first = image_response.data[0]
             image_url = getattr(first, "url", None)
             b64_data = getattr(first, "b64_json", None)
+            # __openai compatibility: in some versions image_response.data[0] may be {"b64_json": ...},
+            # in others maybe {"url": ...}. When both are missing, try direct key lookup.
+        else:
+            # Fallback for dict-like response from alternative versions
+            answer_data = None
+            if isinstance(image_response, dict):
+                answer_data = image_response.get("data")
+            if answer_data:
+                maybe_first = answer_data[0]
+                if isinstance(maybe_first, dict):
+                    image_url = maybe_first.get("url")
+                    b64_data = maybe_first.get("b64_json")
 
         if not image_url and not b64_data:
             raise ValueError("Не вдалося отримати дані зображення від API")
