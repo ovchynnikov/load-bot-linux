@@ -11,6 +11,7 @@ from datetime import datetime
 import google.generativeai as genai
 import openai
 from openai import AsyncOpenAI
+from openai.error import OpenAIError
 from functools import lru_cache
 from collections import defaultdict
 from dotenv import load_dotenv
@@ -234,7 +235,7 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
         else:
             raise ValueError("Не вдалося отримати зображення для відправки")
 
-    except (openai.error.OpenAIError, ValueError) as e:
+    except (OpenAIError, ValueError) as e:
         error("Image generation failed: %s", e)
         await update.message.reply_text(
             "Вибачте, не вдалося згенерувати зображення. Спробуйте пізніше.",
