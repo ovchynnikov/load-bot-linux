@@ -9,6 +9,7 @@ import time
 import traceback
 from datetime import datetime
 import google.generativeai as genai
+import openai
 from openai import AsyncOpenAI
 from functools import lru_cache
 from collections import defaultdict
@@ -233,7 +234,7 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
         else:
             raise ValueError("Не вдалося отримати зображення для відправки")
 
-    except Exception as e:
+    except (openai.error.OpenAIError, ValueError) as e:
         error("Image generation failed: %s", e)
         await update.message.reply_text(
             "Вибачте, не вдалося згенерувати зображення. Спробуйте пізніше.",
