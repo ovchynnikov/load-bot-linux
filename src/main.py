@@ -73,7 +73,7 @@ xai_client = None
 if GROK_API_KEY and xai_sdk is not None:
     try:
         xai_client = xai_sdk.Client(api_key=GROK_API_KEY)
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-except
         error("Failed to initialize xai_sdk.Client: %s", e)
         xai_client = None
 
@@ -253,7 +253,7 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
             file_bytes = base64.b64decode(image_b64)
             await update.message.reply_photo(photo=file_bytes, caption="Ось ваше зображення 🖼️")
 
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-except
         error("Image generation failed: %s", e)
         await update.message.reply_text(
             "Вибачте, не вдалося згенерувати зображення. Спробуйте пізніше.",
