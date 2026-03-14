@@ -10,6 +10,7 @@ import traceback
 from datetime import datetime
 import google.generativeai as genai
 from openai import AsyncOpenAI
+
 try:
     import xai_sdk
 except ImportError:
@@ -248,6 +249,7 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
             await update.message.reply_photo(photo=image_url, caption="Ось ваше зображення 🖼️")
         else:
             import base64
+
             file_bytes = base64.b64decode(image_b64)
             await update.message.reply_photo(photo=file_bytes, caption="Ось ваше зображення 🖼️")
 
