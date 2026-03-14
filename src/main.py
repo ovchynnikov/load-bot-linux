@@ -1,5 +1,6 @@
 """Download videos from tiktok, x(twitter), reddit, youtube shorts, instagram reels and many more"""
 
+import base64
 import os
 import random
 import json
@@ -58,6 +59,9 @@ TELEGRAM_CONNECT_TIMEOUT = 60
 TELEGRAM_POOL_TIMEOUT = 30
 TELEGRAM_READ_TIMEOUT = 120
 TELEGRAM_WRITE_TIMEOUT = 120
+MAX_PROMPT_LEN = 1000
+IMAGE_CAPTION = "Ось ваше зображення 🖼️"
+IMAGE_TIMEOUT_SEC = 30.0
 
 # Configure Gemini API
 if GEMINI_API_KEY:
@@ -212,48 +216,44 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
         )
         return
 
-    if not xai_sdk:
+    if not xai_sdk or not xai_client:
         await update.message.reply_text(
-            "xai_sdk не встановлено. Додайте залежність xai-sdk до requirements та перезапустіть.",
+            "xAI клієнт недоступний. Перевірте встановлення xai-sdk та GROK_API_KEY.",
             reply_to_message_id=update.message.message_id,
         )
         return
 
-    if not xai_client:
-        await update.message.reply_text(
-            "Не вдалося ініціалізувати xAI клієнт. Перевірте GROK_API_KEY.",
-            reply_to_message_id=update.message.message_id,
-        )
-        return
+    prompt = prompt[:MAX_PROMPT_LEN].strip()
 
     try:
-        # Use xAI image generation API per docs (grok-imagine-image)
-        # run sync SDK in thread to avoid loop conflict
-        image_response = await asyncio.to_thread(
-            xai_client.image.sample,
-            prompt=prompt,
-            model=GROK_IMG_MODEL,
+        image_response = await asyncio.wait_for(
+            asyncio.to_thread(
+                xai_client.image.sample,
+                prompt=prompt,
+                model=GROK_IMG_MODEL,
+            ),
+            timeout=IMAGE_TIMEOUT_SEC,
         )
 
         image_url = getattr(image_response, "url", None)
-        if not image_url and hasattr(image_response, "image"):
-            image_b64 = getattr(image_response, "image")
-            image_url = None
-        else:
-            image_b64 = None
+        image_b64 = getattr(image_response, "image", None) if not image_url else None
 
         if not image_url and not image_b64:
             raise ValueError("Не вдалося отримати результат з xAI API")
 
         if image_url:
-            await update.message.reply_photo(photo=image_url, caption="Ось ваше зображення 🖼️")
+            await update.message.reply_photo(photo=image_url, caption=IMAGE_CAPTION)
         else:
-            import base64
-
             file_bytes = base64.b64decode(image_b64)
-            await update.message.reply_photo(photo=file_bytes, caption="Ось ваше зображення 🖼️")
+            await update.message.reply_photo(photo=file_bytes, caption=IMAGE_CAPTION)
 
-    except Exception as e: # pylint: disable=broad-except
+    except asyncio.TimeoutError:
+        error("Image generation timed out for prompt: %.100s", prompt)
+        await update.message.reply_text(
+            "Генерація зайняла надто багато часу. Спробуйте пізніше.",
+            reply_to_message_id=update.message.message_id,
+        )
+    except Exception as e:  # pylint: disable=broad-except
         error("Image generation failed: %s", e)
         await update.message.reply_text(
             "Вибачте, не вдалося згенерувати зображення. Спробуйте пізніше.",
