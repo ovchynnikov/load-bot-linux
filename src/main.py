@@ -48,8 +48,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 GROK_API_KEY = os.getenv("GROK_API_KEY")
 GROK_MODEL = os.getenv("GROK_MODEL", "grok-4-latest")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_IMG_MODEL = os.getenv("OPENAI_IMG_MODEL", "gpt-image-1-mini")
+GROK_IMG_MODEL = os.getenv("GROK_IMG_MODEL", "grok-imagine-image")
 TELEGRAM_CONNECT_TIMEOUT = 60
 TELEGRAM_POOL_TIMEOUT = 30
 TELEGRAM_READ_TIMEOUT = 120
@@ -184,7 +183,7 @@ def extract_image_prompt(message_text: str) -> str | None:
 
 
 async def generate_image_and_send(update: Update, prompt: str) -> None:
-    """Generate image through Gemini Image API and send to Telegram."""
+    """Generate image through Grok image API and send to Telegram."""
     if not prompt:
         await update.message.reply_text(
             "Вкажіть, що саме потрібно згенерувати після 'botyara, image:'",
@@ -192,18 +191,24 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
         )
         return
 
-    if not OPENAI_API_KEY:
+    if not GROK_API_KEY:
         await update.message.reply_text(
-            "OpenAI API key не налаштовано. Будь ласка, встановіть OPENAI_API_KEY.",
+            "Grok API key не налаштовано. Будь ласка, встановіть GROK_API_KEY.",
+            reply_to_message_id=update.message.message_id,
+        )
+        return
+
+    if not grok_client:
+        await update.message.reply_text(
+            "Grok клієнт неініціалізований. Перевірте конфігурацію GROK_API_KEY.",
             reply_to_message_id=update.message.message_id,
         )
         return
 
     try:
-        client = OpenAI(api_key=OPENAI_API_KEY)
         # `response_format` may not be supported in some openai client versions, so omit it.
-        image_response = client.images.generate(
-            model=OPENAI_IMG_MODEL,
+        image_response = await grok_client.images.generate(
+            model=GROK_IMG_MODEL,
             prompt=prompt,
             size="1024x1024",
         )
