@@ -9,9 +9,7 @@ import time
 import traceback
 from datetime import datetime
 import google.generativeai as genai
-import openai
-from openai import AsyncOpenAI
-from openai.error import OpenAIError
+from openai import AsyncOpenAI, OpenAI, OpenAIError
 from functools import lru_cache
 from collections import defaultdict
 from dotenv import load_dotenv
@@ -202,22 +200,21 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
         return
 
     try:
-        image_response = openai.Image.create(
-            api_key=OPENAI_API_KEY,
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        image_response = client.images.generate(
             model=OPENAI_IMG_MODEL,
             prompt=prompt,
             size="512x512",
-            response_format="b64_json",  # щоб точно отримати контент, без URL-посилань
+            response_format="b64_json",
         )
 
         image_url = None
         b64_data = None
 
-        if isinstance(image_response, dict) and image_response.get("data"):
-            first = image_response["data"][0]
-            # openai Image endpoint може повертати url або b64_json залежно від response_format
-            image_url = first.get("url")
-            b64_data = first.get("b64_json")
+        if getattr(image_response, "data", None):
+            first = image_response.data[0]
+            image_url = getattr(first, "url", None)
+            b64_data = getattr(first, "b64_json", None)
 
         if not image_url and not b64_data:
             raise ValueError("Не вдалося отримати дані зображення від API")
