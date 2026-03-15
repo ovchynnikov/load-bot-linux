@@ -105,6 +105,7 @@ Get a Telegram bot token from [@BotFather](https://t.me/botfather), then send `b
 **Optional - Error Reporting:**
 - `SEND_ERROR_TO_ADMIN` - Forward errors to admin (default: false)
 - `ADMINS_CHAT_IDS` - Comma-separated admin chat IDs
+- `SEND_USER_INFO_WITH_HEALTHCHECK` - Send user info when bot_health command is triggered
 
 **Optional - AI/LLM (Grok or Gemini):**
 - `USE_LLM` - Enable AI chat (default: false)
