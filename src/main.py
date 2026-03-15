@@ -61,7 +61,17 @@ TELEGRAM_POOL_TIMEOUT = 30
 TELEGRAM_READ_TIMEOUT = 120
 TELEGRAM_WRITE_TIMEOUT = 120
 MAX_PROMPT_LEN = 1000
-IMAGE_CAPTION = "Ось ваше зображення 🖼️"
+
+
+def get_image_caption():
+    """Get localized image caption."""
+    if language == "uk":
+        return "Ось ваше зображення 🖼️"
+    else:
+        return "Here's your image 🖼️"
+
+
+IMAGE_CAPTION_STUB = get_image_caption()  # Legacy reference for compatibility
 IMAGE_TIMEOUT_SEC = 30.0
 
 # Configure Gemini API
@@ -211,21 +221,33 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
     """Generate image through Grok image API and send to Telegram."""
     if not prompt:
         await update.message.reply_text(
-            "Вкажіть, що саме потрібно згенерувати після 'botyara, image:'",
+            (
+                "Вкажіть, що саме потрібно згенерувати після 'botyara, image:'"
+                if language == "uk"
+                else "Please specify what you want to generate after 'bot, image:'"
+            ),
             reply_to_message_id=update.message.message_id,
         )
         return
 
     if not GROK_API_KEY:
         await update.message.reply_text(
-            "Grok API key не налаштовано. Будь ласка, встановіть GROK_API_KEY.",
+            (
+                "Grok API key не налаштовано. Будь ласка, встановіть GROK_API_KEY."
+                if language == "uk"
+                else "Grok API key is not configured. Please set GROK_API_KEY."
+            ),
             reply_to_message_id=update.message.message_id,
         )
         return
 
     if not xai_sdk or not xai_client:
         await update.message.reply_text(
-            "xAI клієнт недоступний. Перевірте встановлення xai-sdk та GROK_API_KEY.",
+            (
+                "xAI клієнт недоступний. Перевірте встановлення xai-sdk та GROK_API_KEY."
+                if language == "uk"
+                else "xAI client is unavailable. Please check xai-sdk installation and GROK_API_KEY."
+            ),
             reply_to_message_id=update.message.message_id,
         )
         return
@@ -294,26 +316,20 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
             raise ValueError("Не вдалося отримати результат з xAI API")
 
         if image_url:
-            await update.message.reply_photo(photo=image_url, caption=IMAGE_CAPTION)
+            await update.message.reply_photo(photo=image_url, caption=get_image_caption())
         else:
             file_bytes = base64.b64decode(image_b64)
-            await update.message.reply_photo(photo=file_bytes, caption=IMAGE_CAPTION)
+            await update.message.reply_photo(photo=file_bytes, caption=get_image_caption())
 
         # Increment daily limit only after successful generation
         img_gen_daily_limit[user_id]["count"] += 1
 
-        # Save img_gen rate limit data to DB (best-effort)
+        # Save img_gen rate limit data to DB (best-effort, targeted update only)
         async def save_img_gen_to_db():
             try:
-                user_data = await asyncio.to_thread(db_storage.load_user_data, user_id) or {}
                 await asyncio.to_thread(
-                    db_storage.save_user_data,
+                    db_storage.update_user_image_limits,
                     user_id,
-                    user_data.get("conversation_context", []),
-                    user_data.get("rate_limit_timestamps", []),
-                    user_data.get("daily_count", 0),
-                    user_data.get("daily_date", ""),
-                    user_data.get("last_seen", current_time),
                     img_gen_rate_limit[user_id],
                     img_gen_daily_limit[user_id]["count"],
                     img_gen_daily_limit[user_id]["date"],
@@ -329,7 +345,11 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
         if img_gen_rate_limit[user_id] and img_gen_rate_limit[user_id][-1] == current_time:
             img_gen_rate_limit[user_id].pop()
         await update.message.reply_text(
-            "Генерація зайняла надто багато часу. Спробуйте пізніше.",
+            (
+                "Генерація зайняла надто багато часу. Спробуйте пізніше."
+                if language == "uk"
+                else "Image generation took too long. Please try again later."
+            ),
             reply_to_message_id=update.message.message_id,
         )
     except Exception as e:  # pylint: disable=broad-except
@@ -338,7 +358,11 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
         if img_gen_rate_limit[user_id] and img_gen_rate_limit[user_id][-1] == current_time:
             img_gen_rate_limit[user_id].pop()
         await update.message.reply_text(
-            "Вибачте, не вдалося згенерувати зображення. Спробуйте пізніше.",
+            (
+                "Вибачте, не вдалося згенерувати зображення. Спробуйте пізніше."
+                if language == "uk"
+                else "Sorry, I couldn't generate the image. Please try again later."
+            ),
             reply_to_message_id=update.message.message_id,
         )
 
@@ -1123,6 +1147,10 @@ async def cleanup_stale_users():
                     del llm_rate_limit[user_id]
                 if user_id in llm_daily_limit:
                     del llm_daily_limit[user_id]
+                if user_id in img_gen_rate_limit:
+                    del img_gen_rate_limit[user_id]
+                if user_id in img_gen_daily_limit:
+                    del img_gen_daily_limit[user_id]
                 if user_id in user_last_seen:
                     del user_last_seen[user_id]
                 # Remove from database

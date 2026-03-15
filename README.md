@@ -113,6 +113,7 @@ Get a Telegram bot token from [@BotFather](https://t.me/botfather), then send `b
 - `GEMINI_API_KEY` - Google API key (get from https://aistudio.google.com)
 - `LLM_RPM_LIMIT` - LLM Requests (prompts) per minute (default: 50)
 - `LLM_RPD_LIMIT` - LLM Requests per day (default: 500)
+- `GROK_IMG_MODEL` - default: grok-imagine-image
 - `IMG_GEN_RPM_LIMIT` - Image generations per minute (default: 1)
 - `IMG_GEN_RPD_LIMIT` - Image generations per day (default: 25)
 - `MAX_CONTEXT_MESSAGES` - LLM Messages (prompts) to remember per user (default: 3)

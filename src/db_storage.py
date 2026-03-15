@@ -115,6 +115,24 @@ class BotStorage:
         cursor.execute("DELETE FROM user_data WHERE user_id = ?", (user_id,))
         self.conn.commit()
 
+    def update_user_image_limits(self, user_id, img_gen_rate_limit_timestamps, img_gen_daily_count, img_gen_daily_date):
+        """Update only image generation limit fields without affecting other user data."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            UPDATE user_data
+            SET img_gen_rate_limit_timestamps = ?, img_gen_daily_count = ?, img_gen_daily_date = ?
+            WHERE user_id = ?
+            """,
+            (
+                json.dumps(img_gen_rate_limit_timestamps or []),
+                img_gen_daily_count,
+                img_gen_daily_date,
+                user_id,
+            ),
+        )
+        self.conn.commit()
+
     def get_stale_users(self, ttl_seconds):
         """Get list of user IDs that haven't been seen within TTL."""
         current_time = time.time()
