@@ -268,7 +268,7 @@ Send `ботяра, ` any message and the bot will respond using Grok or Gemini.
 ### Generate Image (Grok only)
 
 ```
-`ботяра, image:` a sunset over mountains
+ботяра, image: a sunset over mountains
 ```
 
 ## Supported Platforms
@@ -402,10 +402,6 @@ Or clear database (WARNING: loses user data):
 docker exec downloader-bot rm /bot/data/bot.db
 docker restart downloader-bot
 ```
-
-### Out of memory
-
-Enable GPU compression: `USE_GPU_COMPRESSING=true`
 
 ## Contributing
 
