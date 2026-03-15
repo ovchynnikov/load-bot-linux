@@ -85,6 +85,9 @@ Get a Telegram bot token from [@BotFather](https://t.me/botfather), then send `b
 **Required:**
 - `BOT_TOKEN` - Your Telegram bot token
 
+<details>
+  <summary>Click to expand</summary>
+
 **Optional - Basic:**
 - `LANGUAGE` - `en` or `uk` (default: uk)
 - `LOG_LEVEL` - DEBUG, INFO, WARNING, ERROR (default: INFO)
@@ -118,6 +121,8 @@ Get a Telegram bot token from [@BotFather](https://t.me/botfather), then send `b
 **Optional - Cleanup:**
 - `USER_CLEANUP_TTL_DAYS` - Remove LLM context messages (promtps) for inactive users after N days (default: 3)
 - `USER_CLEANUP_INTERVAL_HOURS` - Cleanup interval (default: 24)
+
+</details>
 
 ### Example .env
 
