@@ -1,5 +1,6 @@
 """Download videos from tiktok, x(twitter), reddit, youtube shorts, instagram reels and many more"""
 
+import base64
 import os
 import random
 import json
@@ -8,8 +9,14 @@ import re
 import time
 import traceback
 from datetime import datetime
+from typing import Optional
 import google.generativeai as genai
 from openai import AsyncOpenAI
+
+try:
+    import xai_sdk
+except ImportError:
+    xai_sdk = None
 from functools import lru_cache
 from collections import defaultdict
 from dotenv import load_dotenv
@@ -48,10 +55,24 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 GROK_API_KEY = os.getenv("GROK_API_KEY")
 GROK_MODEL = os.getenv("GROK_MODEL", "grok-4-latest")
+GROK_IMG_MODEL = os.getenv("GROK_IMG_MODEL", "grok-imagine-image")
 TELEGRAM_CONNECT_TIMEOUT = 60
 TELEGRAM_POOL_TIMEOUT = 30
 TELEGRAM_READ_TIMEOUT = 120
 TELEGRAM_WRITE_TIMEOUT = 120
+MAX_PROMPT_LEN = 1000
+
+
+def get_image_caption():
+    """Get localized image caption."""
+    if language == "uk":
+        return "Ось ваше зображення 🖼️"
+    else:
+        return "Here's your image 🖼️"
+
+
+IMAGE_CAPTION_STUB = get_image_caption()  # Legacy reference for compatibility
+IMAGE_TIMEOUT_SEC = 30.0
 
 # Configure Gemini API
 if GEMINI_API_KEY:
@@ -62,11 +83,26 @@ grok_client = None
 if GROK_API_KEY:
     grok_client = AsyncOpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
 
+# Configure xAI image API client (grok-imagine-image)
+xai_client = None
+if GROK_API_KEY and xai_sdk is not None:
+    try:
+        xai_client = xai_sdk.Client(api_key=GROK_API_KEY)
+    except Exception as e:  # pylint: disable=broad-except
+        error("Failed to initialize xai_sdk.Client: %s", e)
+        xai_client = None
+
 # Rate limiting for LLM APIs
 llm_rate_limit = defaultdict(list)  # {user_id: [timestamp1, timestamp2, ...]}
 llm_daily_limit = defaultdict(lambda: {"count": 0, "date": ""})  # {user_id: {count, date}}
-LLM_RPM_LIMIT = int(os.getenv("LLM_RPM_LIMIT", "50"))  # Requests per minute per user
-LLM_RPD_LIMIT = int(os.getenv("LLM_RPD_LIMIT", "500"))  # Requests per day per user
+
+# Rate limiting for Image Generation
+img_gen_rate_limit = defaultdict(list)  # {user_id: [timestamp1, timestamp2, ...]}
+img_gen_daily_limit = defaultdict(lambda: {"count": 0, "date": ""})  # {user_id: {count, date}}
+LLM_RPM_LIMIT = int(os.getenv("LLM_RPM_LIMIT", "50"))  # LLM Requests per minute per user
+LLM_RPD_LIMIT = int(os.getenv("LLM_RPD_LIMIT", "500"))  # LLM Requests per day per user
+IMG_GEN_RPM_LIMIT = int(os.getenv("IMG_GEN_RPM_LIMIT", "1"))  # Image Generation Requests per minute per user
+IMG_GEN_RPD_LIMIT = int(os.getenv("IMG_GEN_RPD_LIMIT", "25"))  # Image Generation Requests per day per user
 
 # Conversation context storage: {user_id: [(user_msg, bot_response), ...]}
 conversation_context = defaultdict(list)
@@ -160,6 +196,181 @@ def is_bot_mentioned(message_text: str) -> bool:
     return False
 
 
+def extract_image_prompt(message_text: str) -> Optional[str]:
+    """Extract image generation prompt for commands like 'ботяра, image: ...'."""
+    if not message_text:
+        return None
+
+    lower = message_text.lower()
+    # Match bot command for image generation: ботяра, image: prompt
+    match = re.search(r"ботяра[^\w\d]*image\s*:\s*(.+)", lower)
+    if match:
+        prompt = match.group(1).strip()
+        return prompt or None
+
+    # Fallback for english trigger
+    match = re.search(r"bot\s*:\s*image\s*:\s*(.+)", lower)
+    if match:
+        prompt = match.group(1).strip()
+        return prompt or None
+
+    return None
+
+
+async def generate_image_and_send(update: Update, prompt: str) -> None:
+    """Generate image through Grok image API and send to Telegram."""
+    if not prompt:
+        await update.message.reply_text(
+            (
+                "Вкажіть, що саме потрібно згенерувати після 'botyara, image:'"
+                if language == "uk"
+                else "Please specify what you want to generate after 'bot, image:'"
+            ),
+            reply_to_message_id=update.message.message_id,
+        )
+        return
+
+    if not GROK_API_KEY:
+        await update.message.reply_text(
+            (
+                "Grok API key не налаштовано. Будь ласка, встановіть GROK_API_KEY."
+                if language == "uk"
+                else "Grok API key is not configured. Please set GROK_API_KEY."
+            ),
+            reply_to_message_id=update.message.message_id,
+        )
+        return
+
+    if not xai_sdk or not xai_client:
+        await update.message.reply_text(
+            (
+                "xAI клієнт недоступний. Перевірте встановлення xai-sdk та GROK_API_KEY."
+                if language == "uk"
+                else "xAI client is unavailable. Please check xai-sdk installation and GROK_API_KEY."
+            ),
+            reply_to_message_id=update.message.message_id,
+        )
+        return
+
+    # Rate limiting for image generation
+    user_id = update.effective_user.id
+    current_time = time.time()
+
+    # Load img_gen data from DB on first access
+    if user_id not in img_gen_daily_limit:
+        user_data = await asyncio.to_thread(db_storage.load_user_data, user_id)
+        if user_data:
+            img_gen_rate_limit[user_id] = user_data["img_gen_rate_limit_timestamps"]
+            img_gen_daily_limit[user_id] = {
+                "count": user_data["img_gen_daily_count"],
+                "date": user_data["img_gen_daily_date"],
+            }
+
+    # Clean old timestamps (older than 60 seconds)
+    img_gen_rate_limit[user_id] = [t for t in img_gen_rate_limit[user_id] if current_time - t < 60]
+
+    if len(img_gen_rate_limit[user_id]) >= IMG_GEN_RPM_LIMIT:
+        debug("Image gen RPM limit hit for user %s", user_id)
+        await update.message.reply_text(
+            (
+                "Вибачте, забагато запитів на генерацію зображень. Почекайте хвилину."
+                if language == "uk"
+                else "Sorry, too many image generation requests. Please wait a minute."
+            ),
+            reply_to_message_id=update.message.message_id,
+        )
+        return
+
+    # Check daily image gen limit
+    today = datetime.now().strftime("%Y-%m-%d")
+    if img_gen_daily_limit[user_id]["date"] != today:
+        img_gen_daily_limit[user_id] = {"count": 0, "date": today}
+
+    if img_gen_daily_limit[user_id]["count"] >= IMG_GEN_RPD_LIMIT:
+        debug("Image gen RPD limit hit for user %s", user_id)
+        await update.message.reply_text(
+            (
+                "Вибачте, денний ліміт генерації зображень вичерпано. Спробуйте завтра."
+                if language == "uk"
+                else "Sorry, daily image generation limit reached. Try again tomorrow."
+            ),
+            reply_to_message_id=update.message.message_id,
+        )
+        return
+
+    # Tentatively add current request timestamp (will be removed on failure)
+    img_gen_rate_limit[user_id].append(current_time)
+
+    prompt = prompt[:MAX_PROMPT_LEN].strip()
+
+    try:
+        image_response = await asyncio.wait_for(
+            asyncio.to_thread(
+                xai_client.image.sample,
+                prompt=prompt,
+                model=GROK_IMG_MODEL,
+            ),
+            timeout=IMAGE_TIMEOUT_SEC,
+        )
+
+        image_url = getattr(image_response, "url", None)
+        image_b64 = getattr(image_response, "image", None) if not image_url else None
+
+        if not image_url and not image_b64:
+            raise ValueError("Не вдалося отримати результат з xAI API")
+
+        if image_url:
+            await update.message.reply_photo(photo=image_url, caption=get_image_caption())
+        else:
+            file_bytes = base64.b64decode(image_b64)
+            await update.message.reply_photo(photo=file_bytes, caption=get_image_caption())
+
+        # Increment daily limit only after successful generation
+        img_gen_daily_limit[user_id]["count"] += 1
+
+        # Save img_gen rate limit data to DB (best-effort, targeted update only)
+        async def save_img_gen_to_db():
+            try:
+                await asyncio.to_thread(
+                    db_storage.update_user_image_limits,
+                    user_id,
+                    img_gen_rate_limit[user_id],
+                    img_gen_daily_limit[user_id]["count"],
+                    img_gen_daily_limit[user_id]["date"],
+                )
+            except Exception as db_error:  # pylint: disable=broad-except
+                error("Failed to save img_gen data to database: %s", db_error)
+
+        asyncio.create_task(save_img_gen_to_db())
+
+    except asyncio.TimeoutError:
+        error("Image generation timed out for prompt: %.100s", prompt)
+        # Remove tentative timestamp on failure
+        if img_gen_rate_limit[user_id] and img_gen_rate_limit[user_id][-1] == current_time:
+            img_gen_rate_limit[user_id].pop()
+        await update.message.reply_text(
+            (
+                "Генерація зайняла надто багато часу. Спробуйте пізніше."
+                if language == "uk"
+                else "Image generation took too long. Please try again later."
+            ),
+            reply_to_message_id=update.message.message_id,
+        )
+    except Exception as e:  # pylint: disable=broad-except
+        error("Image generation failed: %s", e)
+        # Remove tentative timestamp on failure
+        if img_gen_rate_limit[user_id] and img_gen_rate_limit[user_id][-1] == current_time:
+            img_gen_rate_limit[user_id].pop()
+        await update.message.reply_text(
+            (
+                "Вибачте, не вдалося згенерувати зображення. Спробуйте пізніше."
+                if language == "uk"
+                else "Sorry, I couldn't generate the image. Please try again later."
+            ),
+            reply_to_message_id=update.message.message_id,
+        )
+
+
 def clean_url(message_text: str) -> str:
     """
     Cleans the URL from the message text by removing unwanted characters and usernames.
@@ -246,6 +457,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
     debug("LLM_PROVIDER: %s", LLM_PROVIDER)
 
     if bot_mentioned:
+        cleaned_text = message_text.strip().lower()
+
+        # Health check always takes priority, even with LLM enabled
+        if cleaned_text.startswith("bot_health"):
+            # Check if it's a pure health check command (no additional parameters like 'image:')
+            if "image:" not in cleaned_text:
+                debug("Health check command detected")
+                await respond_with_bot_message(update)
+                return
+
+        image_prompt = extract_image_prompt(message_text)
+        if image_prompt:
+            debug("Bot image command detected with prompt: %s", image_prompt)
+            await generate_image_and_send(update, image_prompt)
+            return
+
         if USE_LLM:
             debug("Calling LLM response function")
             await respond_with_llm_message(update)
@@ -615,19 +842,19 @@ async def respond_with_llm_message(update):
     try:
         # Check if user is asking for image generation and modify prompt
         image_keywords = [
-            'картинку',
-            'картинка',
-            'зображення',
-            'image',
-            'фото',
-            'picture',
-            'згенеруй',
-            'generate',
-            'створи',
-            'create',
-            'покажи',
-            'покажи мне',
-            'покажи мені',
+            # 'картинку',
+            # 'картинка',
+            # 'зображення',
+            # 'image',
+            # 'фото',
+            # 'picture',
+            # 'згенеруй',
+            # 'generate',
+            # 'створи',
+            # 'create',
+            # 'покажи',
+            # 'покажи мне',
+            # 'покажи мені',
         ]
         # Check both original message and processed prompt
         original_text = message_text.lower()
@@ -720,15 +947,25 @@ async def respond_with_llm_message(update):
                     llm_daily_limit[user_id]["count"],
                     llm_daily_limit[user_id]["date"],
                 )
-                await asyncio.to_thread(
-                    db_storage.save_user_data,
-                    user_id,
-                    conversation_context[user_id],
-                    llm_rate_limit[user_id],
-                    llm_daily_limit[user_id]["count"],
-                    llm_daily_limit[user_id]["date"],
-                    user_last_seen[user_id],
-                )
+
+                # Build save arguments, only including image gen data if explicitly set for this user
+                save_kwargs = {
+                    "user_id": user_id,
+                    "conversation_context": conversation_context[user_id],
+                    "rate_limit_timestamps": llm_rate_limit[user_id],
+                    "daily_count": llm_daily_limit[user_id]["count"],
+                    "daily_date": llm_daily_limit[user_id]["date"],
+                    "last_seen": user_last_seen[user_id],
+                }
+
+                # Only include image gen data if user has actually interacted with image generation
+                if user_id in img_gen_rate_limit:
+                    save_kwargs["img_gen_rate_limit_timestamps"] = img_gen_rate_limit[user_id]
+                if user_id in img_gen_daily_limit:
+                    save_kwargs["img_gen_daily_count"] = img_gen_daily_limit[user_id]["count"]
+                    save_kwargs["img_gen_daily_date"] = img_gen_daily_limit[user_id]["date"]
+
+                await asyncio.to_thread(db_storage.save_user_data, **save_kwargs)
             except Exception as db_error:  # pylint: disable=broad-except
                 error("Failed to save user data to database: %s", db_error)
 
@@ -914,6 +1151,10 @@ async def cleanup_stale_users():
                     del llm_rate_limit[user_id]
                 if user_id in llm_daily_limit:
                     del llm_daily_limit[user_id]
+                if user_id in img_gen_rate_limit:
+                    del img_gen_rate_limit[user_id]
+                if user_id in img_gen_daily_limit:
+                    del img_gen_daily_limit[user_id]
                 if user_id in user_last_seen:
                     del user_last_seen[user_id]
                 # Remove from database
