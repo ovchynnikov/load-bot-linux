@@ -28,16 +28,34 @@ class BotStorage:
                 rate_limit_timestamps TEXT,
                 daily_count INTEGER DEFAULT 0,
                 daily_date TEXT,
-                last_seen REAL
+                last_seen REAL,
+                img_gen_rate_limit_timestamps TEXT,
+                img_gen_daily_count INTEGER DEFAULT 0,
+                img_gen_daily_date TEXT
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_data_last_seen ON user_data(last_seen)")
+        # Migrate existing tables that don't have image gen columns
+        for col, definition in [
+            ("img_gen_rate_limit_timestamps", "TEXT"),
+            ("img_gen_daily_count", "INTEGER DEFAULT 0"),
+            ("img_gen_daily_date", "TEXT"),
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE user_data ADD COLUMN {col} {definition}")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
         self.conn.commit()
 
     def load_user_data(self, user_id):
         """Load user data from database."""
         cursor = self.conn.cursor()
-        cursor.execute("SELECT * FROM user_data WHERE user_id = ?", (user_id,))
+        cursor.execute(
+            "SELECT user_id, conversation_context, rate_limit_timestamps, daily_count, daily_date, last_seen,"
+            " img_gen_rate_limit_timestamps, img_gen_daily_count, img_gen_daily_date"
+            " FROM user_data WHERE user_id = ?",
+            (user_id,),
+        )
         row = cursor.fetchone()
         if row:
             return {
@@ -46,17 +64,32 @@ class BotStorage:
                 "daily_count": row[3],
                 "daily_date": row[4],
                 "last_seen": row[5],
+                "img_gen_rate_limit_timestamps": json.loads(row[6]) if row[6] else [],
+                "img_gen_daily_count": row[7] or 0,
+                "img_gen_daily_date": row[8] or "",
             }
         return None
 
-    def save_user_data(self, user_id, conversation_context, rate_limit_timestamps, daily_count, daily_date, last_seen):
+    def save_user_data(
+        self,
+        user_id,
+        conversation_context,
+        rate_limit_timestamps,
+        daily_count,
+        daily_date,
+        last_seen,
+        img_gen_rate_limit_timestamps=None,
+        img_gen_daily_count=0,
+        img_gen_daily_date="",
+    ):
         """Save user data to database."""
         cursor = self.conn.cursor()
         cursor.execute(
             """
-            INSERT OR REPLACE INTO user_data 
-            (user_id, conversation_context, rate_limit_timestamps, daily_count, daily_date, last_seen)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO user_data
+            (user_id, conversation_context, rate_limit_timestamps, daily_count, daily_date, last_seen,
+             img_gen_rate_limit_timestamps, img_gen_daily_count, img_gen_daily_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -65,6 +98,9 @@ class BotStorage:
                 daily_count,
                 daily_date,
                 last_seen,
+                json.dumps(img_gen_rate_limit_timestamps or []),
+                img_gen_daily_count,
+                img_gen_daily_date,
             ),
         )
         self.conn.commit()

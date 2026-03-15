@@ -84,8 +84,14 @@ if GROK_API_KEY and xai_sdk is not None:
 # Rate limiting for LLM APIs
 llm_rate_limit = defaultdict(list)  # {user_id: [timestamp1, timestamp2, ...]}
 llm_daily_limit = defaultdict(lambda: {"count": 0, "date": ""})  # {user_id: {count, date}}
-LLM_RPM_LIMIT = int(os.getenv("LLM_RPM_LIMIT", "50"))  # Requests per minute per user
-LLM_RPD_LIMIT = int(os.getenv("LLM_RPD_LIMIT", "500"))  # Requests per day per user
+
+# Rate limiting for Image Generation
+img_gen_rate_limit = defaultdict(list)  # {user_id: [timestamp1, timestamp2, ...]}
+img_gen_daily_limit = defaultdict(lambda: {"count": 0, "date": ""})  # {user_id: {count, date}}
+LLM_RPM_LIMIT = int(os.getenv("LLM_RPM_LIMIT", "50"))  # LLM Requests per minute per user
+LLM_RPD_LIMIT = int(os.getenv("LLM_RPD_LIMIT", "500"))  # LLM Requests per day per user
+IMG_GEN_RPM_LIMIT = int(os.getenv("IMG_GEN_RPM_LIMIT", "1"))  # Image Generation Requests per minute per user
+IMG_GEN_RPD_LIMIT = int(os.getenv("IMG_GEN_RPD_LIMIT", "25"))  # Image Generation Requests per day per user
 
 # Conversation context storage: {user_id: [(user_msg, bot_response), ...]}
 conversation_context = defaultdict(list)
@@ -223,6 +229,55 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
         )
         return
 
+    # Rate limiting for image generation
+    user_id = update.effective_user.id
+    current_time = time.time()
+
+    # Load img_gen data from DB on first access
+    if user_id not in img_gen_daily_limit:
+        user_data = await asyncio.to_thread(db_storage.load_user_data, user_id)
+        if user_data:
+            img_gen_rate_limit[user_id] = user_data["img_gen_rate_limit_timestamps"]
+            img_gen_daily_limit[user_id] = {
+                "count": user_data["img_gen_daily_count"],
+                "date": user_data["img_gen_daily_date"],
+            }
+
+    # Clean old timestamps (older than 60 seconds)
+    img_gen_rate_limit[user_id] = [t for t in img_gen_rate_limit[user_id] if current_time - t < 60]
+
+    if len(img_gen_rate_limit[user_id]) >= IMG_GEN_RPM_LIMIT:
+        debug("Image gen RPM limit hit for user %s", user_id)
+        await update.message.reply_text(
+            (
+                "Вибачте, забагато запитів на генерацію зображень. Почекайте хвилину."
+                if language == "uk"
+                else "Sorry, too many image generation requests. Please wait a minute."
+            ),
+            reply_to_message_id=update.message.message_id,
+        )
+        return
+
+    # Check daily image gen limit
+    today = datetime.now().strftime("%Y-%m-%d")
+    if img_gen_daily_limit[user_id]["date"] != today:
+        img_gen_daily_limit[user_id] = {"count": 0, "date": today}
+
+    if img_gen_daily_limit[user_id]["count"] >= IMG_GEN_RPD_LIMIT:
+        debug("Image gen RPD limit hit for user %s", user_id)
+        await update.message.reply_text(
+            (
+                "Вибачте, денний ліміт генерації зображень вичерпано. Спробуйте завтра."
+                if language == "uk"
+                else "Sorry, daily image generation limit reached. Try again tomorrow."
+            ),
+            reply_to_message_id=update.message.message_id,
+        )
+        return
+
+    # Tentatively add current request timestamp (will be removed on failure)
+    img_gen_rate_limit[user_id].append(current_time)
+
     prompt = prompt[:MAX_PROMPT_LEN].strip()
 
     try:
@@ -247,14 +302,44 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
             file_bytes = base64.b64decode(image_b64)
             await update.message.reply_photo(photo=file_bytes, caption=IMAGE_CAPTION)
 
+        # Increment daily limit only after successful generation
+        img_gen_daily_limit[user_id]["count"] += 1
+
+        # Save img_gen rate limit data to DB (best-effort)
+        async def save_img_gen_to_db():
+            try:
+                user_data = await asyncio.to_thread(db_storage.load_user_data, user_id) or {}
+                await asyncio.to_thread(
+                    db_storage.save_user_data,
+                    user_id,
+                    user_data.get("conversation_context", []),
+                    user_data.get("rate_limit_timestamps", []),
+                    user_data.get("daily_count", 0),
+                    user_data.get("daily_date", ""),
+                    user_data.get("last_seen", current_time),
+                    img_gen_rate_limit[user_id],
+                    img_gen_daily_limit[user_id]["count"],
+                    img_gen_daily_limit[user_id]["date"],
+                )
+            except Exception as db_error:  # pylint: disable=broad-except
+                error("Failed to save img_gen data to database: %s", db_error)
+
+        asyncio.create_task(save_img_gen_to_db())
+
     except asyncio.TimeoutError:
         error("Image generation timed out for prompt: %.100s", prompt)
+        # Remove tentative timestamp on failure
+        if img_gen_rate_limit[user_id] and img_gen_rate_limit[user_id][-1] == current_time:
+            img_gen_rate_limit[user_id].pop()
         await update.message.reply_text(
             "Генерація зайняла надто багато часу. Спробуйте пізніше.",
             reply_to_message_id=update.message.message_id,
         )
     except Exception as e:  # pylint: disable=broad-except
         error("Image generation failed: %s", e)
+        # Remove tentative timestamp on failure
+        if img_gen_rate_limit[user_id] and img_gen_rate_limit[user_id][-1] == current_time:
+            img_gen_rate_limit[user_id].pop()
         await update.message.reply_text(
             "Вибачте, не вдалося згенерувати зображення. Спробуйте пізніше.",
             reply_to_message_id=update.message.message_id,
@@ -835,6 +920,9 @@ async def respond_with_llm_message(update):
                     llm_daily_limit[user_id]["count"],
                     llm_daily_limit[user_id]["date"],
                     user_last_seen[user_id],
+                    img_gen_rate_limit[user_id],
+                    img_gen_daily_limit[user_id]["count"],
+                    img_gen_daily_limit[user_id]["date"],
                 )
             except Exception as db_error:  # pylint: disable=broad-except
                 error("Failed to save user data to database: %s", db_error)
