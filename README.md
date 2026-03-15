@@ -108,15 +108,15 @@ Get a Telegram bot token from [@BotFather](https://t.me/botfather), then send `b
 - `LLM_PROVIDER` - `grok` or `gemini` (default: grok)
 - `GROK_API_KEY` - xAI API key (get from https://console.grok.ai)
 - `GEMINI_API_KEY` - Google API key (get from https://aistudio.google.com)
-- `LLM_RPM_LIMIT` - Requests per minute (default: 50)
-- `LLM_RPD_LIMIT` - Requests per day (default: 500)
+- `LLM_RPM_LIMIT` - LLM Requests (prompts) per minute (default: 50)
+- `LLM_RPD_LIMIT` - LLM Requests per day (default: 500)
 - `IMG_GEN_RPM_LIMIT` - Image generations per minute (default: 1)
 - `IMG_GEN_RPD_LIMIT` - Image generations per day (default: 25)
-- `MAX_CONTEXT_MESSAGES` - Messages to remember (default: 3)
+- `MAX_CONTEXT_MESSAGES` - LLM Messages (promtps) to remember per user (default: 3)
 - `MAX_CONTEXT_CHARS` - Max chars per message (default: 500)
 
 **Optional - Cleanup:**
-- `USER_CLEANUP_TTL_DAYS` - Remove inactive users after N days (default: 3)
+- `USER_CLEANUP_TTL_DAYS` - Remove LLM context messages (promtps) for inactive users after N days (default: 3)
 - `USER_CLEANUP_INTERVAL_HOURS` - Cleanup interval (default: 24)
 
 ### Example .env
@@ -259,16 +259,16 @@ Prefix with `**`:
 
 ### Check Bot Status
 
-Send `bot_health` or `ботяра` to the bot. It will respond with status.
+Send `ботяра, bot_health` to the bot. It will respond with status.
 
 ### AI Chat (if enabled)
 
-Send any message and the bot will respond using Grok or Gemini.
+Send `ботяра, ` any message and the bot will respond using Grok or Gemini.
 
 ### Generate Image (Grok only)
 
 ```
-image: a sunset over mountains
+`ботяра, image:` a sunset over mountains
 ```
 
 ## Supported Platforms
@@ -304,7 +304,7 @@ ALLOWED_USERNAMES=username1,username2
 ALLOWED_CHAT_IDS=12345,67890
 ```
 
-To get your IDs, send `bot_health` to the bot.
+To get your IDs, send `ботяра, bot_health` to the bot.
 
 ## Error Reporting
 
@@ -343,7 +343,7 @@ Optional integration with language models.
 ### Usage
 
 - Send a message: bot responds with AI
-- Image generation (Grok): `image: prompt`
+- Image generation (Grok): `ботяра, image: prompt`
 - Bot remembers conversation history (configurable)
 
 ## Troubleshooting
@@ -361,7 +361,7 @@ docker logs downloader-bot
 journalctl -u downloader-bot.service -n 50
 ```
 
-Send `bot_health` to test.
+Send `ботяра, bot_health` to test.
 
 ### Video download fails
 
