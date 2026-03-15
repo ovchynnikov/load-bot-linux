@@ -432,6 +432,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
     debug("LLM_PROVIDER: %s", LLM_PROVIDER)
 
     if bot_mentioned:
+        cleaned_text = message_text.strip().lower()
+
+        # Health check always takes priority, even with LLM enabled
+        if cleaned_text.startswith("bot_health"):
+            # Check if it's a pure health check command (no additional parameters like 'image:')
+            if "image:" not in cleaned_text:
+                debug("Health check command detected")
+                await respond_with_bot_message(update)
+                return
+
         image_prompt = extract_image_prompt(message_text)
         if image_prompt:
             debug("Bot image command detected with prompt: %s", image_prompt)
