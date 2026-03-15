@@ -116,19 +116,26 @@ class BotStorage:
         self.conn.commit()
 
     def update_user_image_limits(self, user_id, img_gen_rate_limit_timestamps, img_gen_daily_count, img_gen_daily_date):
-        """Update only image generation limit fields without affecting other user data."""
+        """Update or insert image generation limit fields.
+
+        Ensures the user row exists with image limit fields set, either by updating
+        an existing row or creating a new one with defaults for other fields.
+        """
         cursor = self.conn.cursor()
         cursor.execute(
             """
-            UPDATE user_data
-            SET img_gen_rate_limit_timestamps = ?, img_gen_daily_count = ?, img_gen_daily_date = ?
-            WHERE user_id = ?
+            INSERT INTO user_data (user_id, img_gen_rate_limit_timestamps, img_gen_daily_count, img_gen_daily_date)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                img_gen_rate_limit_timestamps = excluded.img_gen_rate_limit_timestamps,
+                img_gen_daily_count = excluded.img_gen_daily_count,
+                img_gen_daily_date = excluded.img_gen_daily_date
             """,
             (
+                user_id,
                 json.dumps(img_gen_rate_limit_timestamps or []),
                 img_gen_daily_count,
                 img_gen_daily_date,
-                user_id,
             ),
         )
         self.conn.commit()
