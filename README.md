@@ -264,7 +264,7 @@ Prefix with `**`:
 
 ### Check Bot Status
 
-Send `ботяра, bot_health` to the bot. It will respond with status.
+Send `bot_health` to the bot. It will respond with status.
 
 ### AI Chat (if enabled)
 
@@ -309,7 +309,7 @@ ALLOWED_USERNAMES=username1,username2
 ALLOWED_CHAT_IDS=12345,67890
 ```
 
-To get your IDs, send `ботяра, bot_health` to the bot.
+To get your IDs, send `bot_health` to the bot.
 
 ## Error Reporting
 
@@ -366,7 +366,7 @@ docker logs downloader-bot
 journalctl -u downloader-bot.service -n 50
 ```
 
-Send `ботяра, bot_health` to test.
+Send `bot_health` to test.
 
 ### Video download fails
 
