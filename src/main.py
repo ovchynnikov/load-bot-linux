@@ -9,6 +9,7 @@ import re
 import time
 import traceback
 from datetime import datetime
+from typing import Optional
 import google.generativeai as genai
 from openai import AsyncOpenAI
 
@@ -76,9 +77,9 @@ if GROK_API_KEY:
 xai_client = None
 if GROK_API_KEY and xai_sdk is not None:
     try:
-        xai_client = xai_sdk.Client(api_key=GROK_API_KEY)
+        xai_client = xai_sdk.AsyncClient(api_key=GROK_API_KEY, timeout=IMAGE_TIMEOUT_SEC)
     except Exception as e:  # pylint: disable=broad-except
-        error("Failed to initialize xai_sdk.Client: %s", e)
+        error("Failed to initialize xai_sdk.AsyncClient: %s", e)
         xai_client = None
 
 # Rate limiting for LLM APIs
@@ -185,7 +186,7 @@ def is_bot_mentioned(message_text: str) -> bool:
     return False
 
 
-def extract_image_prompt(message_text: str) -> str | None:
+def extract_image_prompt(message_text: str) -> Optional[str]:
     """Extract image generation prompt for commands like 'ботяра, image: ...'."""
     if not message_text:
         return None
@@ -281,13 +282,9 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
     prompt = prompt[:MAX_PROMPT_LEN].strip()
 
     try:
-        image_response = await asyncio.wait_for(
-            asyncio.to_thread(
-                xai_client.image.sample,
-                prompt=prompt,
-                model=GROK_IMG_MODEL,
-            ),
-            timeout=IMAGE_TIMEOUT_SEC,
+        image_response = await xai_client.image.sample(
+            prompt=prompt,
+            model=GROK_IMG_MODEL,
         )
 
         image_url = getattr(image_response, "url", None)
@@ -922,18 +919,25 @@ async def respond_with_llm_message(update):
                     llm_daily_limit[user_id]["count"],
                     llm_daily_limit[user_id]["date"],
                 )
-                await asyncio.to_thread(
-                    db_storage.save_user_data,
-                    user_id,
-                    conversation_context[user_id],
-                    llm_rate_limit[user_id],
-                    llm_daily_limit[user_id]["count"],
-                    llm_daily_limit[user_id]["date"],
-                    user_last_seen[user_id],
-                    img_gen_rate_limit[user_id],
-                    img_gen_daily_limit[user_id]["count"],
-                    img_gen_daily_limit[user_id]["date"],
-                )
+
+                # Build save arguments, only including image gen data if explicitly set for this user
+                save_kwargs = {
+                    "user_id": user_id,
+                    "conversation_context": conversation_context[user_id],
+                    "rate_limit_timestamps": llm_rate_limit[user_id],
+                    "daily_count": llm_daily_limit[user_id]["count"],
+                    "daily_date": llm_daily_limit[user_id]["date"],
+                    "last_seen": user_last_seen[user_id],
+                }
+
+                # Only include image gen data if user has actually interacted with image generation
+                if user_id in img_gen_rate_limit:
+                    save_kwargs["img_gen_rate_limit_timestamps"] = img_gen_rate_limit[user_id]
+                if user_id in img_gen_daily_limit:
+                    save_kwargs["img_gen_daily_count"] = img_gen_daily_limit[user_id]["count"]
+                    save_kwargs["img_gen_daily_date"] = img_gen_daily_limit[user_id]["date"]
+
+                await asyncio.to_thread(db_storage.save_user_data, **save_kwargs)
             except Exception as db_error:  # pylint: disable=broad-except
                 error("Failed to save user data to database: %s", db_error)
 

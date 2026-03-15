@@ -14,7 +14,6 @@ A Telegram bot that downloads videos from 1000+ platforms (YouTube, Instagram, T
 - [Quick Start](#quick-start)
 - [Features](#features)
 - [Setup](#setup)
-- [Configuration](#configuration)
 - [Usage](#usage)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
@@ -116,11 +115,11 @@ Get a Telegram bot token from [@BotFather](https://t.me/botfather), then send `b
 - `LLM_RPD_LIMIT` - LLM Requests per day (default: 500)
 - `IMG_GEN_RPM_LIMIT` - Image generations per minute (default: 1)
 - `IMG_GEN_RPD_LIMIT` - Image generations per day (default: 25)
-- `MAX_CONTEXT_MESSAGES` - LLM Messages (promtps) to remember per user (default: 3)
+- `MAX_CONTEXT_MESSAGES` - LLM Messages (prompts) to remember per user (default: 3)
 - `MAX_CONTEXT_CHARS` - Max chars per message (default: 500)
 
 **Optional - Cleanup:**
-- `USER_CLEANUP_TTL_DAYS` - Remove LLM context messages (promtps) for inactive users after N days (default: 3)
+- `USER_CLEANUP_TTL_DAYS` - Remove LLM context messages (prompts) for inactive users after N days (default: 3)
 - `USER_CLEANUP_INTERVAL_HOURS` - Cleanup interval (default: 24)
 
 </details>

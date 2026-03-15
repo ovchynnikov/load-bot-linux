@@ -43,8 +43,12 @@ class BotStorage:
         ]:
             try:
                 cursor.execute(f"ALTER TABLE user_data ADD COLUMN {col} {definition}")
-            except sqlite3.OperationalError:
-                pass  # Column already exists
+            except sqlite3.OperationalError as e:
+                # Only suppress the error if the column already exists
+                error_msg = str(e).lower()
+                if "duplicate" not in error_msg and "already exists" not in error_msg:
+                    raise
+                # Column already exists, continue
         self.conn.commit()
 
     def load_user_data(self, user_id):
