@@ -60,11 +60,11 @@ Get a Telegram bot token from [@BotFather](https://t.me/botfather), then send `b
 - Automatic compression to fit Telegram's 50 MB limit
 - GPU acceleration (Intel VAAPI)
 - Instagram Stories/Carousels with automatic fallback
-- Optional AI chat (Grok or Google Gemini)
-- Conversation history per user
 - Access control via allowlist (by username or chat ID)
 - Error reporting to admin chats
 - Multi-language support (Ukrainian, English)
+- Optional AI chat (Grok or Google Gemini)
+- Conversation context prompt history per user for AI
 
 ## Setup
 
