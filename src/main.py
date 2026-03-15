@@ -87,9 +87,9 @@ if GROK_API_KEY:
 xai_client = None
 if GROK_API_KEY and xai_sdk is not None:
     try:
-        xai_client = xai_sdk.AsyncClient(api_key=GROK_API_KEY, timeout=IMAGE_TIMEOUT_SEC)
+        xai_client = xai_sdk.Client(api_key=GROK_API_KEY)
     except Exception as e:  # pylint: disable=broad-except
-        error("Failed to initialize xai_sdk.AsyncClient: %s", e)
+        error("Failed to initialize xai_sdk.Client: %s", e)
         xai_client = None
 
 # Rate limiting for LLM APIs
@@ -304,9 +304,13 @@ async def generate_image_and_send(update: Update, prompt: str) -> None:
     prompt = prompt[:MAX_PROMPT_LEN].strip()
 
     try:
-        image_response = await xai_client.image.sample(
-            prompt=prompt,
-            model=GROK_IMG_MODEL,
+        image_response = await asyncio.wait_for(
+            asyncio.to_thread(
+                xai_client.image.sample,
+                prompt=prompt,
+                model=GROK_IMG_MODEL,
+            ),
+            timeout=IMAGE_TIMEOUT_SEC,
         )
 
         image_url = getattr(image_response, "url", None)
