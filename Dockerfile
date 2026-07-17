@@ -10,8 +10,10 @@ RUN --mount=type=bind,target=/tmp/requirements.txt,source=src/requirements.txt \
     && echo "deb-src http://deb.debian.org/debian bookworm main contrib non-free" >> /etc/apt/sources.list \
     && apt-get update \
     && apt-get install --no-install-recommends -y ffmpeg libva-drm2 libva-x11-2 libva2 vainfo \
-    # Uncomment the line below for Intel servers (comment out for ARM/M4 MacBook local development) \
-    && apt-get install --no-install-recommends -y intel-media-va-driver-non-free \
+    # intel-media-va-driver-non-free is amd64-only; skip it on arm64 (e.g. Apple Silicon local dev) \
+    && if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
+        apt-get install --no-install-recommends -y intel-media-va-driver-non-free; \
+    fi \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
     && python3 -m pip install --no-cache-dir -r /tmp/requirements.txt
 
@@ -21,5 +23,10 @@ WORKDIR /bot
 
 # https://stackoverflow.com/questions/58701233/docker-logs-erroneously-appears-empty-until-container-stops
 ENV PYTHONUNBUFFERED=1
+
+# Works around a SIGILL crash in cryptography's bundled OpenSSL Rust bindings, which
+# misdetects ARM crypto-extension support on some aarch64 hosts/VMs (e.g. Docker
+# Desktop on Apple Silicon). Disabling ARM crypto-extension detection avoids it.
+ENV OPENSSL_armcap=0
 
 CMD ["python", "main.py"]
