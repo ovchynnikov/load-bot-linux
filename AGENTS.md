@@ -88,7 +88,8 @@ is sent → the temp directory is cleaned in `finally`. Updates are still handle
 - `.env.example` has no inline comments on purpose: `docker run --env-file` keeps `# ...` as
   part of the value.
 - `LIMIT_BOT_ACCESS` fails closed: only `false`/`0`/`no`/`off` (case-insensitive) disable it.
-- **Every push to `main` deploys** (Dokku push + Docker image). Work on a branch.
+- Every push to `main` deploys (Dokku push + Docker image); this is intended. Work directly on
+  `main`; don't create branches unless the user asks.
 - Never pass `message.message_thread_id` directly to Telegram; use `llm_delivery.message_topic_id`
   (non-forum reply chains also carry a thread ID).
 - Log exceptions with `safe_diagnostics.exception_summary`, not `str(exc)` — SDK error text
