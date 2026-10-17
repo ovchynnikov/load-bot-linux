@@ -16,6 +16,7 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 import main
+import downloads
 from grok_api import GrokResult
 from llm_text import localized
 
@@ -129,7 +130,7 @@ async def check():
     with patch.object(main, 'respond_with_bot_message', AsyncMock()) as health:
         await main.handle_message(update('bot_health'), context)
         health.assert_awaited_once()
-    with patch.object(main, 'is_video_too_long_to_download', return_value=False), patch.object(main, 'download_media', return_value=None):
+    with patch.object(downloads, 'is_video_too_long_to_download', return_value=False), patch.object(downloads, 'download_media', return_value=None):
         failed_download = update('https://reddit.com/r/test/comments/123')
         await main.handle_message(failed_download, context)
         assert ('Не вдалося завантажити' if main.language == 'uk' else "Couldn't download") in failed_download.message.reply_text.call_args.args[0]

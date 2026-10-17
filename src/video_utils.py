@@ -6,12 +6,18 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 import yt_dlp
 from dotenv import load_dotenv
-from logger import debug, error
+from logger import debug, error, info
 
 load_dotenv()  # Load environment variables from .env file
+
+# Per-stage bounds: a hung probe/compression would otherwise block every later message.
+FFPROBE_TIMEOUT_SEC = 30
+FFMPEG_TIMEOUT_SEC = 300
+METADATA_SOCKET_TIMEOUT_SEC = 30
 
 # Retrieve the INSTACOOKIES environment variable and set a default value
 instagram_cookies = os.getenv("INSTACOOKIES", "false").lower() == 'true'
@@ -73,6 +79,8 @@ def get_video_metadata(url):
     ydl_opts = {
         'noplaylist': True,
         'quiet': True,
+        # Guards against a connection that stays open without sending data; not an overall deadline.
+        'socket_timeout': METADATA_SOCKET_TIMEOUT_SEC,
     }
     cookies_file = get_cookies_file(url)
     if cookies_file:
@@ -179,12 +187,20 @@ def compress_video(input_path):
         temp_output,
     ]
 
+    started = time.monotonic()
     try:
-        subprocess.run(command, check=True)
+        subprocess.run(command, check=True, timeout=FFMPEG_TIMEOUT_SEC)
         if os.path.exists(temp_output):
             os.replace(temp_output, input_path)
     except subprocess.CalledProcessError as e:
         error("Error while compressing: %s", e)
+    except subprocess.TimeoutExpired:
+        # The file stays as large as before, so the caller replies "too large".
+        error("Compression timed out after %s seconds: %s", FFMPEG_TIMEOUT_SEC, input_path)
+    finally:
+        if os.path.exists(temp_output):
+            os.remove(temp_output)
+    info("Compression finished in %.1f seconds for %.0f-second video", time.monotonic() - started, duration)
     debug("Compression completed for video: %s", input_path)
 
 
@@ -203,9 +219,11 @@ def get_video_duration(video_path):
         video_path,
     ]
     try:
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        result = subprocess.run(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True, timeout=FFPROBE_TIMEOUT_SEC
+        )
         return float(result.stdout.strip())
-    except (subprocess.CalledProcessError, ValueError) as e:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError) as e:
         error("Error getting video duration: %s", e)
         return None
 
@@ -227,10 +245,12 @@ def get_video_dimensions(video_path):
         video_path,
     ]
     try:
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        result = subprocess.run(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True, timeout=FFPROBE_TIMEOUT_SEC
+        )
         width, height = result.stdout.strip().split(',')
         return int(width), int(height)
-    except (subprocess.CalledProcessError, ValueError) as e:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError) as e:
         error("Error getting video dimensions: %s", e)
         return None, None
 
@@ -360,10 +380,6 @@ def download_media(url):
         error("Download process timed out: %s", e)
     except (OSError, IOError) as e:
         error("File system error occurred: %s", e)
-    except yt_dlp.utils.DownloadError as e:
-        error("Download error occurred: %s", e)
-    except yt_dlp.utils.ExtractorError as e:
-        error("Extractor error occurred: %s", e)
 
     if not result_path:
         # Nothing usable was downloaded: remove the temp dir here, the caller only cleans up returned paths
