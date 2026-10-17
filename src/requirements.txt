@@ -1,8 +1,8 @@
 python-telegram-bot[ext]>=22.8
-python-dotenv>=1.2.3
+python-dotenv>=1.2.4
 yt-dlp>=2026.8.19
-gallery-dl>=1.32.12
-aiohttp>=3.14.3
+gallery-dl>=1.32.17
+aiohttp>=3.14.5
 google-generativeai>=0.8.6
-openai>=3.15.0
-xai-sdk>=1.19.0
+openai>=3.33.0
+xai-sdk>=1.20.0
