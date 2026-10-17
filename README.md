@@ -95,6 +95,7 @@ Get a Telegram bot token from [@BotFather](https://t.me/botfather), then send `b
 - `H_CODEC` - `libx265` (smaller) or `libx264` (default: libx265)
 - `USE_GPU_COMPRESSING` - Enable Intel VAAPI (default: false)
 - `INSTACOOKIES` - Use Instagram cookies file (default: false)
+- `REDDITCOOKIES` - Use Reddit cookies file `reddit_cookies.txt` (default: false)
 
 **Optional - Access Control:**
 - `LIMIT_BOT_ACCESS` - Restrict to allowlist (default: false)
@@ -162,6 +163,8 @@ docker run -d --name downloader-bot --restart always --env-file .env \
 ```
 
 Enable `INSTACOOKIES=true` in `.env`.
+
+Reddit works the same way: mount `reddit_cookies.txt` to `/bot/reddit_cookies.txt` and set `REDDITCOOKIES=true`.
 
 ### With GPU (Intel)
 
@@ -300,6 +303,16 @@ To download private/age-restricted content:
 
 The bot automatically falls back to gallery-dl if yt-dlp fails.
 
+## Reddit
+
+Reddit often requires a logged-in session to download videos. Without cookies such links fail and the bot
+replies that it couldn't download the media.
+
+1. Log in to Reddit in a browser and export cookies (Netscape format) using a browser extension
+2. Save as `reddit_cookies.txt`
+3. Mount in Docker (`/bot/reddit_cookies.txt`) or place in working directory
+4. Set `REDDITCOOKIES=true`
+
 ## Access Control
 
 Restrict bot access to specific users or groups:
@@ -381,6 +394,11 @@ Send `bot_health` to test.
 - Set up cookies file (see Instagram section)
 - Enable `INSTACOOKIES=true`
 - Ensure cookies are valid
+
+### Reddit downloads don't work
+
+- Set up cookies file (see Reddit section)
+- Enable `REDDITCOOKIES=true`
 
 ### GPU not working
 

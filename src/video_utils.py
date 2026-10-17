@@ -3,6 +3,7 @@
 
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -31,6 +32,30 @@ if instagram_cookies:
 else:
     debug("INSTACOOKIES is False or cookies file not found")
 
+# Reddit increasingly requires a logged-in session for videos; same approach as Instagram cookies
+REDDIT_COOKIES_FILE = "reddit_cookies.txt"
+reddit_cookies = os.getenv("REDDITCOOKIES", "false").lower() == 'true'
+if reddit_cookies and not os.path.exists(REDDIT_COOKIES_FILE):
+    error("REDDITCOOKIES is True but '%s' not found.", REDDIT_COOKIES_FILE)
+    reddit_cookies = False  # pylint: disable=invalid-name
+
+
+def is_reddit_url(url: str) -> bool:
+    return "reddit.com/" in url or "redd.it/" in url
+
+
+def get_cookies_file(url: str):
+    """Return the cookies file to use for this URL, or None."""
+    if is_reddit_url(url):
+        return REDDIT_COOKIES_FILE if reddit_cookies else None
+    return "instagram_cookies.txt" if instagram_cookies else None
+
+
+def get_cookies_args(url: str) -> list:
+    """Return yt-dlp command-line arguments for the cookies file of this URL."""
+    cookies_file = get_cookies_file(url)
+    return ["--cookies", cookies_file] if cookies_file else []
+
 
 def get_video_metadata(url):
     """
@@ -49,6 +74,9 @@ def get_video_metadata(url):
         'noplaylist': True,
         'quiet': True,
     }
+    cookies_file = get_cookies_file(url)
+    if cookies_file:
+        ydl_opts['cookiefile'] = cookies_file
     debug("Getting video metadata for: %s", url)
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
@@ -282,7 +310,8 @@ def download_media(url):
         url (str): The URL of the video to download.
 
     Returns:
-        list: The list of path to the downloaded media files if successful, or None if the download fails.
+        str or list: The path to the downloaded video, or the list of paths to the downloaded media files
+            (gallery-dl fallback). None if nothing was downloaded; the temporary directory is removed then.
 
     Exceptions:
         Handles exceptions for subprocess errors, timeouts, or unexpected errors during the
@@ -291,7 +320,7 @@ def download_media(url):
     temp_dir = tempfile.mkdtemp()
     command = [
         "yt-dlp",  # Assuming yt-dlp is installed and in the PATH
-        *(["--cookies", "instagram_cookies.txt"] if instagram_cookies else []),
+        *get_cookies_args(url),
         "--no-progress",
         "-S",
         "vcodec:h264,fps,res,acodec:m4a",
@@ -302,18 +331,21 @@ def download_media(url):
 
     debug("Downloading video from URL: %s", url)
     debug("Downloading video to temp_dir full path: %s", os.path.abspath(temp_dir))
-    result_path = temp_dir  # Initialize the result variable
+    result_path = None  # Initialize the result variable
 
     try:
-        subprocess.run(command, check=True, timeout=120)
+        subprocess.run(command, check=True, timeout=120, capture_output=True, text=True)
         for filename in os.listdir(temp_dir):
             if filename.endswith(".mp4"):
                 result_path = os.path.join(temp_dir, filename)
                 debug("Downloaded video found at path: %s", result_path)
                 break  # Exit the loop once the file is found
+        if not result_path:
+            error("yt-dlp finished but no .mp4 file was found in %s", temp_dir)
     except subprocess.CalledProcessError as e:
-        error("Error downloading video: %s", e)
-        if "[Instagram]" in str(e) and "No video formats found!" in str(e):
+        # stderr has to be captured: str(e) only contains the command and exit code
+        error("Error downloading video: %s yt-dlp stderr: %s", e, (e.stderr or "")[-1000:])
+        if "[Instagram]" in (e.stderr or "") and "No video formats found!" in (e.stderr or ""):
             debug("The yt-dlp did not find Instagram reels, trying gallery-dl for images")
             try:
                 result_path = download_instagram_media(url, temp_dir)
@@ -332,5 +364,10 @@ def download_media(url):
         error("Download error occurred: %s", e)
     except yt_dlp.utils.ExtractorError as e:
         error("Extractor error occurred: %s", e)
+
+    if not result_path:
+        # Nothing usable was downloaded: remove the temp dir here, the caller only cleans up returned paths
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        return None
 
     return result_path  # Return the result variable at the end

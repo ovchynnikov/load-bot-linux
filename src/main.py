@@ -530,6 +530,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):  #
         video_path = []  # Initilize empty list of video paths
         pic_path = []  # Initilize empty list of picture paths
         return_path = download_media(url)
+        if not return_path:
+            await update.message.reply_text(
+                (
+                    "Не вдалося завантажити медіа з цього посилання 😔"
+                    if language == "uk"
+                    else "Couldn't download media from this link 😔"
+                ),
+                reply_to_message_id=update.message.message_id,
+            )
+            return
         # Create a list of media paths
         if isinstance(return_path, list):
             media_path.extend(return_path)

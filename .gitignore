@@ -2,8 +2,9 @@
 .env
 .env.*
 !.env.example
-# instagram_cookies.txt should not be tracked by git because it has cookies
+# cookies files should not be tracked by git
 instagram_cookies.txt
+reddit_cookies.txt
 
 # SQLite database
 src/data/
