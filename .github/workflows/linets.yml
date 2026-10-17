@@ -5,6 +5,7 @@ on:
       - '*'
     paths:
       - 'src/**'
+      - 'tests/**'
       - '!README.md'
       - '!.env.example'
   pull_request:
@@ -32,10 +33,14 @@ jobs:
       - name: Lint Python code with black
         run: |
           black --check --diff --skip-string-normalization --line-length 120 src/
+          black --check --diff --skip-string-normalization --line-length 120 tests/
       - name: Lint Python code with Pylint
         run: |
           cd src/
           pylint --disable=R,C,W1203,W0105 .
+          pylint --disable=R,C,W1203,W0105 ../tests/
+      - name: Check LLM behavior with isolated provider and Telegram fakes
+        run: PYTHONPATH=src python -m unittest discover -s tests -v
 
   lint-docker:
     runs-on: ubuntu-latest

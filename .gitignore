@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# Local planning and review history
+/docs/
 # cookies files should not be tracked by git
 instagram_cookies.txt
 reddit_cookies.txt

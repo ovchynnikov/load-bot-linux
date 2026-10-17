@@ -1,0 +1,230 @@
+{
+  "checked_on": "2026-10-17",
+  "endpoint": "https://api.x.ai/v1/responses",
+  "sdk_probes": [
+    {
+      "probe": "arithmetic_auto",
+      "sdk_version": "3.33.0",
+      "python_version": "3.15.0",
+      "http_status": 200,
+      "duration_seconds": 1.63,
+      "requested_model": "grok-4.3",
+      "returned_model": "grok-4.3",
+      "tool_choice": "auto",
+      "requested_max_turns": 1,
+      "requested_reasoning_effort": "low",
+      "returned_reasoning": {
+        "context": null,
+        "effort": "low",
+        "generate_summary": null,
+        "mode": null,
+        "summary": "detailed"
+      },
+      "requested_store": false,
+      "returned_store": false,
+      "status": "completed",
+      "output_types": [
+        "reasoning",
+        "message"
+      ],
+      "tool_outputs": [],
+      "usage": {
+        "input_tokens": 1064,
+        "input_tokens_details": {
+          "cache_write_tokens": null,
+          "cached_tokens": 0
+        },
+        "output_tokens": 87,
+        "output_tokens_details": {
+          "reasoning_tokens": 86
+        },
+        "total_tokens": 1151,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 15475000,
+        "context_details": {
+          "input_tokens": 1064,
+          "output_tokens": 95
+        }
+      },
+      "incomplete_details": null,
+      "citation_count": 0,
+      "answer_preview": "4",
+      "requested_max_output_tokens": 1536,
+      "requested_timeout_seconds": 75,
+      "max_retries": 0
+    },
+    {
+      "probe": "arithmetic_required",
+      "outcome": "Timeout; execution and billing unknown; no retry.",
+      "requested_max_output_tokens": 1536,
+      "requested_timeout_seconds": 75,
+      "max_retries": 0,
+      "sdk_version": "3.33.0",
+      "requested_model": "grok-4.3",
+      "tool_choice": "required",
+      "requested_max_turns": 1,
+      "requested_reasoning_effort": "low",
+      "requested_store": false
+    },
+    {
+      "probe": "documentation_required",
+      "sdk_version": "3.33.0",
+      "requested_model": "grok-4.3",
+      "tool_choice": "required",
+      "requested_max_turns": 3,
+      "requested_reasoning_effort": "low",
+      "requested_store": false,
+      "http_status": 200,
+      "duration_seconds": 7.4,
+      "returned_model": "grok-4.3",
+      "returned_store": false,
+      "returned_reasoning": {
+        "context": null,
+        "effort": "low",
+        "generate_summary": null,
+        "mode": null,
+        "summary": "detailed"
+      },
+      "status": "completed",
+      "output_types": [
+        "reasoning",
+        "web_search_call",
+        "web_search_call",
+        "reasoning",
+        "reasoning",
+        "message"
+      ],
+      "tool_outputs": [
+        {
+          "type": "web_search_call",
+          "status": "completed"
+        },
+        {
+          "type": "web_search_call",
+          "status": "completed"
+        }
+      ],
+      "usage": {
+        "input_tokens": 7541,
+        "input_tokens_details": {
+          "cache_write_tokens": null,
+          "cached_tokens": 2048
+        },
+        "output_tokens": 426,
+        "output_tokens_details": {
+          "reasoning_tokens": 333
+        },
+        "total_tokens": 7967,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 2,
+        "cost_in_usd_ticks": 183408500,
+        "server_side_tool_usage_details": {
+          "web_search_calls": 2,
+          "x_search_calls": 0,
+          "x_posts_fetched": 0,
+          "x_users_fetched": 0,
+          "code_interpreter_calls": 0,
+          "file_search_calls": 0,
+          "mcp_calls": 0,
+          "document_search_calls": 0,
+          "image_generation_calls": 0
+        },
+        "context_details": {
+          "input_tokens": 6460,
+          "output_tokens": 259
+        }
+      },
+      "incomplete_details": null,
+      "citation_count": 1,
+      "answer_preview": "**math.isqrt(n) returns the integer square root of the nonnegative integer n (the floor of its exact square root, or the greatest integer a such that a\u00b2 \u2264 n).**[[1]](https://docs.python.org/3.14/library/math.html)",
+      "requested_max_output_tokens": 1536,
+      "requested_timeout_seconds": 75,
+      "max_retries": 0
+    }
+  ],
+  "protocol_probe": {
+    "probe": "documentation_required_rest",
+    "client": "Python stdlib urllib, direct REST",
+    "http_status": 200,
+    "duration_seconds": 10.39,
+    "requested_model": "grok-4.3",
+    "returned_model": "grok-4.3",
+    "tool_choice": "required",
+    "requested_max_turns": 1,
+    "requested_reasoning_effort": "low",
+    "requested_store": false,
+    "status": "completed",
+    "output_types": [
+      "reasoning",
+      "web_search_call",
+      "web_search_call",
+      "reasoning",
+      "reasoning",
+      "message"
+    ],
+    "tool_outputs": [
+      {
+        "type": "web_search_call",
+        "status": "completed"
+      },
+      {
+        "type": "web_search_call",
+        "status": "completed"
+      }
+    ],
+    "usage": {
+      "input_tokens": 6973,
+      "input_tokens_details": {
+        "cached_tokens": 1024
+      },
+      "output_tokens": 462,
+      "output_tokens_details": {
+        "reasoning_tokens": 392
+      },
+      "total_tokens": 7435,
+      "num_sources_used": 0,
+      "num_server_side_tools_used": 2,
+      "cost_in_usd_ticks": 187960500,
+      "server_side_tool_usage_details": {
+        "web_search_calls": 2,
+        "x_search_calls": 0,
+        "x_posts_fetched": 0,
+        "x_users_fetched": 0,
+        "code_interpreter_calls": 0,
+        "file_search_calls": 0,
+        "mcp_calls": 0,
+        "document_search_calls": 0,
+        "image_generation_calls": 0
+      },
+      "context_details": {
+        "input_tokens": 5890,
+        "output_tokens": 328
+      }
+    },
+    "incomplete_reason": null,
+    "citation_count": 6,
+    "requested_max_output_tokens": 1536,
+    "requested_timeout_seconds": 85,
+    "max_retries": 0
+  },
+  "sdk_environment": {
+    "isolation": "Temporary venv outside the repository",
+    "python_version": "3.15.0",
+    "openai_version": "3.33.0",
+    "openai_requires_python": ">=3.10",
+    "deployed_python_3_14_not_executed": true
+  },
+  "request_policy": {
+    "credentials_in_artifact": false,
+    "response_headers_or_full_payloads_stored": false,
+    "production_bot_started": false,
+    "automatic_retries": false
+  },
+  "cost_summary": {
+    "completed_request_cost_ticks": 386844000,
+    "ticks_per_usd": 10000000000,
+    "completed_request_cost_usd": "0.0386844",
+    "timed_out_request_cost": "unknown; not included in the completed-request sum"
+  }
+}
