@@ -200,7 +200,7 @@ in-flight replies while their durable search reservations remain counted.
 
 ```bash
 black --check --diff --skip-string-normalization --line-length 120 src/ tests/
-(cd src && pylint --disable=R,C,W1203,W0105 . ../tests/)
+(cd src && pylint --disable=R,C,W1203,W0105 . && PYTHONPATH="$PWD" pylint --disable=R,C,W1203,W0105 ../tests/)
 PYTHONPATH=src python -m unittest discover -s tests -v
 jq empty src/responses_*.json
 ```

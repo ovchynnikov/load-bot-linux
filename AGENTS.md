@@ -11,7 +11,11 @@ Run from the repo root unless noted.
 ```bash
 # Lint — CI runs exactly these; keep them green before finishing.
 black --check --diff --skip-string-normalization --line-length 120 src/
-cd src && pylint --disable=R,C,W1203,W0105 .   # pylint MUST run from src/
+black --check --diff --skip-string-normalization --line-length 120 tests/
+# Pylint MUST run from src/, in two separate invocations as in CI.
+(cd src && pylint --disable=R,C,W1203,W0105 .)
+(cd src && PYTHONPATH="$PWD" pylint --disable=R,C,W1203,W0105 ../tests/)
+PYTHONPATH=src python -m unittest discover -s tests -v
 
 # Auto-format
 black --skip-string-normalization --line-length 120 src/
@@ -23,8 +27,12 @@ cd src && python main.py
 docker-compose up -d
 ```
 
-There is no test suite. "Verify" means: lint passes, `python main.py` imports and starts
-without error, and JSON files are valid (`jq empty src/responses_*.json`).
+Match `.github/workflows/linets.yml` when verifying. Do not combine the two Pylint
+invocations: that can mask test import errors. The separate test check needs the
+explicit source `PYTHONPATH` above.
+
+The test suite uses dummy keys and offline transports, including bot startup checks;
+real API keys are not required. Also validate JSON (`jq empty src/responses_*.json tests/fixtures/*.json`).
 
 ## Architecture
 

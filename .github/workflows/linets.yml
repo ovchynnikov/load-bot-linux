@@ -4,6 +4,7 @@ on:
     branches:
       - '*'
     paths:
+      - '.github/workflows/linets.yml'
       - 'src/**'
       - 'tests/**'
       - '!README.md'
@@ -38,7 +39,7 @@ jobs:
         run: |
           cd src/
           pylint --disable=R,C,W1203,W0105 .
-          pylint --disable=R,C,W1203,W0105 ../tests/
+          PYTHONPATH="$PWD" pylint --disable=R,C,W1203,W0105 ../tests/
       - name: Check LLM behavior with isolated provider and Telegram fakes
         run: PYTHONPATH=src python -m unittest discover -s tests -v
 
