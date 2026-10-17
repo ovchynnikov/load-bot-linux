@@ -48,8 +48,11 @@ sudo apt install ffmpeg
 ```bash
 git clone https://github.com/ovchynnikov/load-bot-linux.git
 cd load-bot-linux
-docker-compose up -d
+cp .env.example .env  # then fill in BOT_TOKEN and other values
+docker compose up -d
 ```
+
+Cookie files can be mounted by uncommenting the cookie lines in `docker-compose.yml`.
 
 Get a Telegram bot token from [@BotFather](https://t.me/botfather), then send `bot_health` to test.
 
@@ -250,6 +253,12 @@ docker run -d --name downloader-bot --restart always --env-file .env \
 Enable `INSTACOOKIES=true` in `.env`.
 
 Reddit works the same way: mount `reddit_cookies.txt` to `/bot/reddit_cookies.txt` and set `REDDITCOOKIES=true`.
+
+Cookie mounts must be writable (no `:ro`): yt-dlp saves the cookie jar back after each run.
+Cookie files are never copied into the image (see `.dockerignore`); always provide them at runtime.
+
+Keep `.env` free of inline comments (`KEY=value  # comment`): `docker run --env-file` treats
+everything after `=` as the value, including the comment.
 
 ### With GPU (Intel)
 

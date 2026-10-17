@@ -3,17 +3,20 @@ name: 🔃 Push to Remote Repository
 on:
   workflow_dispatch:  # Allows manual triggering
   push:
+    # Deploy only when runtime inputs change; docs/tests/README-only commits don't redeploy.
     paths:
-      - '**'
-      - '!README.md'
-      - '!.github/**/*.md'
-      - '!.env.example'
+      - 'src/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '.github/workflows/github-action-push-to-remote.yml'
     branches:
       - 'main'
 
 jobs:
   push_to_remote:
     name: Push changes to remote repository
+    # Manual runs can pick any branch; only main may deploy.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read

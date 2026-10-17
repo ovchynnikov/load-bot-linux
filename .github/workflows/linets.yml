@@ -7,8 +7,8 @@ on:
       - '.github/workflows/linets.yml'
       - 'src/**'
       - 'tests/**'
-      - '!README.md'
-      - '!.env.example'
+      - 'Dockerfile'  # Hadolint runs in this workflow
+      - '.dockerignore'
   pull_request:
     branches:
       - '*'
