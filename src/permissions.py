@@ -6,10 +6,20 @@ the bot based on their Telegram usernames and chat IDs configured in environment
 import os
 from typing import Optional
 from telegram import Update
+from i18n import get_language
 
-allowed_usernames = [x.strip() for x in os.getenv("ALLOWED_USERNAMES", "").split(",") if x]
-allowed_chat_ids = [int(x) for x in os.getenv("ALLOWED_CHAT_IDS", "").split(",") if x]
-limit_bot_access = os.getenv("LIMIT_BOT_ACCESS", "False")
+# Only these values disable access limits; anything else (including typos or quoted values) restricts.
+UNRESTRICTED_VALUES = {"false", "0", "no", "off"}
+
+
+def is_access_limited(value: str) -> bool:
+    """Fail closed: an unrecognized LIMIT_BOT_ACCESS value keeps the allowlist enabled."""
+    return value.strip().lower() not in UNRESTRICTED_VALUES
+
+
+allowed_usernames = [x.strip() for x in os.getenv("ALLOWED_USERNAMES", "").split(",") if x.strip()]
+allowed_chat_ids = [int(x) for x in os.getenv("ALLOWED_CHAT_IDS", "").split(",") if x.strip()]
+limit_bot_access = is_access_limited(os.getenv("LIMIT_BOT_ACCESS", "False"))
 
 
 # Check if user or chat is not allowed. Returns True if not allowed, False if allowed
@@ -24,7 +34,7 @@ def is_user_or_chat_not_allowed(username: Optional[str], chat_id: int) -> bool:
         True if neither user nor chat is allowed, False if either is allowed
     """
     # default case when no limits are set
-    if limit_bot_access == "False":
+    if not limit_bot_access:
         return False
 
     # If chat_id is allowed, grant access regardless of username
@@ -50,8 +60,13 @@ async def inform_user_not_allowed(update: Update) -> None:
         None
     """
     if update.effective_chat.type == "private":
+        not_allowed = (
+            "Вам заборонено користуватися цим ботом."
+            if get_language() == "uk"
+            else "You are not allowed to use this bot."
+        )
         await update.message.reply_text(
-            f"You are not allowed to use this bot.\n "
+            f"{not_allowed}\n "
             f"[Username]:  {update.effective_user.username}\n "
             f"[Chat ID]: {update.effective_chat.id}",
             reply_to_message_id=update.message.message_id,

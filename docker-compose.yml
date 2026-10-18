@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   bot:
     build:
@@ -9,8 +8,10 @@ services:
       - .env
     restart: unless-stopped
     volumes:
-      - ./src:/app:cached  # Use bind mount for development
       - bot-data:/bot/data  # Persistent storage for SQLite database
+      # Optional cookie files (must be writable: yt-dlp saves the cookie jar back):
+      # - ./instagram_cookies.txt:/bot/instagram_cookies.txt
+      # - ./reddit_cookies.txt:/bot/reddit_cookies.txt
     deploy:
       resources:
         limits:

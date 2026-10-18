@@ -48,8 +48,11 @@ sudo apt install ffmpeg
 ```bash
 git clone https://github.com/ovchynnikov/load-bot-linux.git
 cd load-bot-linux
-docker-compose up -d
+cp .env.example .env  # then fill in BOT_TOKEN and other values
+docker compose up -d
 ```
+
+Cookie files can be mounted by uncommenting the cookie lines in `docker-compose.yml`.
 
 Get a Telegram bot token from [@BotFather](https://t.me/botfather), then send `bot_health` to test.
 
@@ -95,6 +98,7 @@ Get a Telegram bot token from [@BotFather](https://t.me/botfather), then send `b
 - `H_CODEC` - `libx265` (smaller) or `libx264` (default: libx265)
 - `USE_GPU_COMPRESSING` - Enable Intel VAAPI (default: false)
 - `INSTACOOKIES` - Use Instagram cookies file (default: false)
+- `REDDITCOOKIES` - Use Reddit cookies file `reddit_cookies.txt` (default: false)
 
 **Optional - Access Control:**
 - `LIMIT_BOT_ACCESS` - Restrict to allowlist (default: false)
@@ -110,6 +114,8 @@ Get a Telegram bot token from [@BotFather](https://t.me/botfather), then send `b
 - `USE_LLM` - Enable AI chat (default: false)
 - `LLM_PROVIDER` - `grok` or `gemini` (default: grok)
 - `GROK_API_KEY` - xAI API key (get from https://console.grok.ai)
+- `GROK_MODEL` - Text model (default: `grok-4.3`; previously `grok-4-latest`). Existing environment overrides take precedence.
+- `GROK_REASONING_EFFORT` - `none`, `low`, `medium`, or `high` (default: `low`)
 - `GEMINI_API_KEY` - Google API key (get from https://aistudio.google.com)
 - `LLM_RPM_LIMIT` - LLM Requests (prompts) per minute (default: 50)
 - `LLM_RPD_LIMIT` - LLM Requests per day (default: 500)
@@ -124,6 +130,89 @@ Get a Telegram bot token from [@BotFather](https://t.me/botfather), then send `b
 - `USER_CLEANUP_INTERVAL_HOURS` - Cleanup interval (default: 24)
 
 </details>
+
+### Grok web search
+
+Enable `USE_LLM=true`, `LLM_PROVIDER=grok`, and `GROK_WEB_SEARCH_ENABLED=true` with
+a valid `GROK_API_KEY`. The existing asynchronous OpenAI-compatible client uses
+xAI's Responses API. No separate search service or key is needed.
+
+With `GROK_WEB_SEARCH_MODE=auto` (default), Grok decides when to search. Use
+`ботяра, web: your question` to require search explicitly, or select `explicit`
+mode to offer search only for that prefix. Prompts and URLs keep their original
+case. Image commands, health checks, Reddit cookies, and downloads keep their
+existing routing. Explicit web requests with Gemini receive a labeled ordinary
+answer; they do not switch providers.
+
+Search admission defaults to **20 requests per user and 50 across the bot per UTC
+day** (`GROK_WEB_SEARCH_RPD_LIMIT`, `GROK_WEB_SEARCH_GLOBAL_RPD_LIMIT`). Reservations
+are durable, atomic, and released only after a completed response proves that no
+search ran. Failures and ambiguous timeouts retain them. Zero quota disables
+search admission. These are request quotas: a request/turn can make multiple paid
+tool calls. `GROK_WEB_SEARCH_MAX_TURNS=3` bounds hosted turns, not dollars.
+
+On a failed search, one tool-free fallback is attempted and clearly labeled as
+unverified. When quotas block auto mode, the first delivered reply per user/UTC
+day includes a notice; later auto replies that day are ordinary chat. Explicit
+`web:` requests remain labeled every time. Notices survive restarts. The bot
+rechecks quota availability on each request because no-search reservations can
+be released later.
+
+Relevant timeouts and bounds (all documented in `.env.example`):
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `GROK_REQUEST_TIMEOUT_SEC` | 120 | Overall provider work, excluding queue/delivery |
+| `GROK_SEARCH_TIMEOUT_SEC` | 75 | Search attempt budget |
+| `GROK_FALLBACK_TIMEOUT_SEC` | 30 | Reserved fallback budget; search + fallback must fit the overall budget |
+| `GROK_MAX_OUTPUT_TOKENS` | 4096 | Generation budget, including reasoning |
+| `LLM_MAX_CONCURRENT_REQUESTS` | 2 | Active LLM jobs |
+| `LLM_MAX_PENDING_REQUESTS` | 10 | Accepted jobs waiting for a user lock/active slot |
+| `LLM_MAX_JOBS_PER_USER` | 3 | Total accepted jobs per user, active plus pending |
+| `LLM_QUEUE_TIMEOUT_SEC` | 120 | Maximum admission wait |
+
+LLM jobs run in the background, in order per user, with best-effort typing while
+queued/generating/sending. Existing synchronous download processing can still
+delay the event loop. Replies include numbered source URLs when available, have
+previews disabled, and split safely into threaded plain-text messages. Conversation
+context remains per user across chats and keeps the configured truncation limits.
+Grok requests use `store=False`; this controls response storage, not every aspect
+of provider data retention. Usage logs include tool/token counts and reported cost
+ticks without adding raw LLM prompts or provider payloads. Error diagnostics include
+safe HTTP status/error codes, known Telegram failure reasons, retry delays and stack
+locations; arbitrary exception messages and frame locals are omitted. Optional LLM settings are validated only with `USE_LLM=true`;
+invalid enabled settings fail startup, while disabled LLM settings do not block downloads.
+
+Persist `/bot/data` in Dokku/Docker so deployments do not reset quotas or history.
+Back up SQLite before rollout. For an already configured Dokku bot, after deploying
+the new code, the non-secret search settings can be applied with:
+
+```bash
+dokku config:set YOUR_APP_NAME GROK_MODEL=grok-4.3 GROK_REASONING_EFFORT=low \
+  GROK_WEB_SEARCH_ENABLED=true GROK_WEB_SEARCH_MODE=auto \
+  GROK_WEB_SEARCH_RPD_LIMIT=20 GROK_WEB_SEARCH_GLOBAL_RPD_LIMIT=50
+```
+
+Set `GROK_WEB_SEARCH_ENABLED=false` to stop new search admission. In-flight work
+may still finish/be billed. This switch does not undo the Responses migration or
+background processing; retain the previous deployment for a full rollback.
+Confirm Dokku's actual stop grace period: a forced container stop can interrupt
+in-flight replies while their durable search reservations remain counted.
+
+### Development verification
+
+```bash
+black --check --diff --skip-string-normalization --line-length 120 src/ tests/
+(cd src && pylint --disable=R,C,W1203,W0105 . && PYTHONPATH="$PWD" pylint --disable=R,C,W1203,W0105 ../tests/)
+PYTHONPATH=src python -m unittest discover -s tests -v
+jq empty src/responses_*.json
+```
+
+Tests use fake provider/Telegram objects, temporary SQLite, and an isolated bot
+startup with dummy credentials. They require no real API keys, do not start production
+polling, or spend API credits. Rotating your Grok key does not affect this suite;
+no token file is needed in `tests/`. Recorded compatibility cases are stored in
+`tests/fixtures/grok-compatibility-results.json` and replayed without network calls.
 
 ### Example .env
 
@@ -162,6 +251,14 @@ docker run -d --name downloader-bot --restart always --env-file .env \
 ```
 
 Enable `INSTACOOKIES=true` in `.env`.
+
+Reddit works the same way: mount `reddit_cookies.txt` to `/bot/reddit_cookies.txt` and set `REDDITCOOKIES=true`.
+
+Cookie mounts must be writable (no `:ro`): yt-dlp saves the cookie jar back after each run.
+Cookie files are never copied into the image (see `.dockerignore`); always provide them at runtime.
+
+Keep `.env` free of inline comments (`KEY=value  # comment`): `docker run --env-file` treats
+everything after `=` as the value, including the comment.
 
 ### With GPU (Intel)
 
@@ -300,6 +397,16 @@ To download private/age-restricted content:
 
 The bot automatically falls back to gallery-dl if yt-dlp fails.
 
+## Reddit
+
+Reddit often requires a logged-in session to download videos. Without cookies such links fail and the bot
+replies that it couldn't download the media.
+
+1. Log in to Reddit in a browser and export cookies (Netscape format) using a browser extension
+2. Save as `reddit_cookies.txt`
+3. Mount in Docker (`/bot/reddit_cookies.txt`) or place in working directory
+4. Set `REDDITCOOKIES=true`
+
 ## Access Control
 
 Restrict bot access to specific users or groups:
@@ -381,6 +488,11 @@ Send `bot_health` to test.
 - Set up cookies file (see Instagram section)
 - Enable `INSTACOOKIES=true`
 - Ensure cookies are valid
+
+### Reddit downloads don't work
+
+- Set up cookies file (see Reddit section)
+- Enable `REDDITCOOKIES=true`
 
 ### GPU not working
 

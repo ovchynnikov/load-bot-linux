@@ -1,13 +1,14 @@
 name: 🐳 Publish Docker image
 
 on:
+  workflow_dispatch:  # Allows manual triggering (e.g. rebuild for base-image updates)
   push:
+    # Publish only when runtime inputs change; docs/tests/README-only commits don't publish.
     paths:
-      - '**'
-      - '!README.md'
-      - '!.github/**/*.md'
-      # - '!.github/workflows/**'
-      - '!.env.example'
+      - 'src/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '.github/workflows/github-actions-push-image.yml'
     branches:
       - 'main'
 
@@ -19,6 +20,8 @@ env:
 jobs:
   push_to_registry:
     name: Push Docker image to Docker Hub
+    # Manual runs can pick any branch; only main may publish production tags.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       packages: write

@@ -1,0 +1,17 @@
+# Keep secrets, local data and non-runtime files out of the build context and image.
+# Patterns use **/ so nested copies (e.g. src/.env, src/local.db) are excluded too.
+.git
+.github
+docs/
+tests/
+**/__pycache__
+**/*.pyc
+**/.DS_Store
+**/.env
+**/.env.*
+!.env.example
+src/data/
+**/*.db
+**/*.db-*
+**/*cookies*.txt
+!src/instagram_cookies_example.txt
